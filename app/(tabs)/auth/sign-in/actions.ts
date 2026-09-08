@@ -10,12 +10,13 @@ export async function signInWithEmail(
 ) {
   const email = (formData.get("email") as string)?.trim();
   const password = formData.get("password") as string;
+  const rememberMe = formData.get("rememberMe") === "on";
 
   if (!email || !password) {
     return { error: "Merci de remplir tous les champs." };
   }
 
-  const { error } = await auth.signIn.email({ email, password });
+  const { error } = await auth.signIn.email({ email, password, rememberMe });
 
   if (error) {
     return { error: error.message || "Impossible de se connecter." };

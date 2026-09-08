@@ -1,11 +1,17 @@
-import { CircleCheck, Crown, Lock, Mail, MapPin, Star, User } from "lucide-react";
+import { CircleCheck, Crown, Lock, Mail, MapPin, Star } from "lucide-react";
+import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
 import Link from "next/link";
 
-import { signOut } from "./actions";
+import { openBillingPortal, signOut, startPremiumCheckout } from "./actions";
 import { ChangePasswordDialog } from "@/components/change-password-dialog";
+import { DemoPreviewSignOutButton, DemoPreviewToggle } from "@/components/demo-preview-toggle";
 import { DeleteAccountDialog } from "@/components/delete-account-dialog";
+import { DevSimulatePremiumToggle } from "@/components/dev-simulate-premium-toggle";
 import { FollowProductButton } from "@/components/follow-product-button";
 import { FollowStoreButton } from "@/components/follow-store-button";
+import { NotificationNudgeBubble } from "@/components/notification-nudge-bubble";
+import { NotificationPermissionToggle } from "@/components/notification-permission-toggle";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -14,6 +20,8 @@ import { Separator } from "@/components/ui/separator";
 import { auth } from "@/lib/auth/server";
 import { sql } from "@/lib/db";
 import { mockCurrentUser, mockProducts, mockStores } from "@/lib/mock-data";
+import { ensureProfil } from "@/lib/profil";
+import { stripe } from "@/lib/stripe";
 import { formatStoreAddress } from "@/lib/utils";
 
 // Pas encore de champ email côté mock — seule la session réelle en fournit un.
@@ -35,11 +43,46 @@ const PLAN_FEATURES: { label: string; free: string | null; premium: string }[] =
 
 export const dynamic = "force-dynamic";
 
-export default async function ProfilPage() {
+export default async function ProfilPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ checkout?: string; session_id?: string }>;
+}) {
   const { data: session } = await auth.getSession();
+  const { checkout, session_id: checkoutSessionId } = await searchParams;
+  const cookieStore = await cookies();
+  const previewConnected = cookieStore.get("demo-preview-connected")?.value === "1";
+  const hasSession = !!session?.user || previewConnected;
+
+  // Pas de session (ni réelle, ni aperçu dev) : la page de connexion couvre déjà
+  // "se connecter"/"créer un compte" (avec Google, mot de passe oublié, etc.) — pas
+  // besoin de dupliquer ce contenu ici, on y renvoie directement.
+  if (!hasSession) {
+    redirect("/auth/sign-in");
+  }
+
+  // Retour de Stripe Checkout : on vérifie la session de paiement plutôt que de faire
+  // confiance au seul paramètre d'URL, puis on passe le compte en Premium.
+  if (session?.user && checkout === "success" && checkoutSessionId) {
+    const checkoutSession = await stripe.checkout.sessions.retrieve(checkoutSessionId);
+    if (checkoutSession.metadata?.userId === session.user.id && checkoutSession.status === "complete") {
+      await sql`
+        update public.profils_utilisateurs
+        set
+          est_premium = true,
+          stripe_customer_id = ${checkoutSession.customer as string},
+          stripe_subscription_id = ${checkoutSession.subscription as string},
+          modifie_le = now()
+        where id = ${session.user.id}
+      `;
+    }
+  }
 
   let profil: { pseudo: string; reputation: number; est_premium: boolean } | undefined;
   if (session?.user) {
+    // Seule l'inscription email/mot de passe crée cette ligne — un compte Google n'en a
+    // jamais sans ça, donc reputation/premium/etc. resteraient bloqués sur le mock.
+    await ensureProfil(session.user.id, session.user.name);
     const rows = await sql`
       select pseudo, reputation, est_premium
       from public.profils_utilisateurs
@@ -63,27 +106,44 @@ export default async function ProfilPage() {
   return (
     <div className="flex flex-1 flex-col">
       <div className="flex flex-col gap-6 p-4">
-        {!session?.user && (
-          <p className="bg-muted text-muted-foreground rounded-md px-3 py-2 text-xs">
-            Mode démo — connecte-toi pour voir ton vrai profil.
-          </p>
+        {previewConnected && !session?.user && (
+          <div className="bg-muted flex items-center justify-between gap-3 rounded-md px-3 py-2">
+            <p className="text-muted-foreground text-xs">
+              Aperçu &quot;connecté&quot; actif — le reste de l&apos;appli tourne toujours sur les
+              données mock.
+            </p>
+            <DemoPreviewToggle checked={previewConnected} />
+          </div>
         )}
 
-        <Card className="flex-row items-center gap-3 p-4">
-          <Avatar className="size-14">
-            <AvatarFallback className="text-lg font-semibold">
-              {displayName.slice(0, 2).toUpperCase()}
-            </AvatarFallback>
-          </Avatar>
-          <div>
-            <p className="flex items-center gap-1.5 text-base font-semibold">
-              {displayName}
-              {isPremium && <Crown className="size-4 fill-amber-400 text-amber-400" />}
-            </p>
-            <p className="text-muted-foreground flex items-center gap-1 text-xs">
-              <Star className="size-3 fill-current" />
-              Réputation {reputation}/100
-            </p>
+        <Card className="gap-0 p-0">
+          <div className="flex items-center gap-3 px-4 pt-4 pb-2">
+            <Avatar className="size-14">
+              <AvatarFallback className="text-lg font-semibold">
+                {displayName.slice(0, 2).toUpperCase()}
+              </AvatarFallback>
+            </Avatar>
+            <div>
+              <p className="flex items-center gap-1.5 text-base font-semibold">
+                {displayName}
+                {isPremium && <Crown className="size-4 fill-amber-400 text-amber-400" />}
+              </p>
+              <p className="text-muted-foreground flex items-center gap-1 text-xs">
+                <Star className="size-3 fill-current" />
+                Réputation {reputation}/100
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3 px-4 pb-2">
+            <Mail className="text-muted-foreground size-4 shrink-0" />
+            <div className="min-w-0">
+              <p className="text-muted-foreground text-xs">Email</p>
+              <p className="truncate text-sm font-medium">{email}</p>
+            </div>
+          </div>
+          <div className="relative">
+            <NotificationPermissionToggle premiumLocked={!isPremium} />
+            <NotificationNudgeBubble isPremium={isPremium} />
           </div>
         </Card>
 
@@ -145,32 +205,18 @@ export default async function ProfilPage() {
                   </li>
                 ))}
               </ul>
-              <Button size="sm" className="mt-1 w-full">
-                {isPremium ? "Gérer l'abonnement" : "Passer Premium"}
-              </Button>
+              <form action={isPremium ? openBillingPortal : startPremiumCheckout}>
+                <Button type="submit" size="sm" className="mt-1 w-full">
+                  {isPremium ? "Gérer l'abonnement" : "Passer Premium"}
+                </Button>
+              </form>
             </Card>
           </div>
-        </div>
-
-        <div>
-          <h2 className="text-muted-foreground mb-2 text-sm font-medium">Coordonnées</h2>
-          <Card className="gap-0 px-4 py-1">
-            <div className="flex items-center gap-3 py-2.5">
-              <User className="text-muted-foreground size-4 shrink-0" />
-              <div className="min-w-0">
-                <p className="text-muted-foreground text-xs">Pseudo</p>
-                <p className="truncate text-sm font-medium">{displayName}</p>
-              </div>
+          {process.env.NODE_ENV !== "production" && (
+            <div className="mt-2">
+              <DevSimulatePremiumToggle checked={isPremium} />
             </div>
-            <Separator />
-            <div className="flex items-center gap-3 py-2.5">
-              <Mail className="text-muted-foreground size-4 shrink-0" />
-              <div className="min-w-0">
-                <p className="text-muted-foreground text-xs">Email</p>
-                <p className="truncate text-sm font-medium">{email}</p>
-              </div>
-            </div>
-          </Card>
+          )}
         </div>
 
         <div>
@@ -257,14 +303,7 @@ export default async function ProfilPage() {
             </Button>
           </form>
         ) : (
-          <div className="flex flex-col gap-2">
-            <Button asChild>
-              <Link href="/auth/sign-in">Se connecter</Link>
-            </Button>
-            <Button asChild variant="outline">
-              <Link href="/auth/sign-up">Créer un compte</Link>
-            </Button>
-          </div>
+          <DemoPreviewSignOutButton />
         )}
       </div>
     </div>

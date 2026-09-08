@@ -2,9 +2,12 @@
 
 import { revalidatePath } from "next/cache";
 
+import { requireSession } from "@/lib/auth/require-session";
 import { mockCurrentUser } from "@/lib/mock-data";
 
 export async function dismissNotification(availabilityId: string) {
+  await requireSession();
+
   if (!mockCurrentUser.dismissedNotificationIds.includes(availabilityId)) {
     mockCurrentUser.dismissedNotificationIds.push(availabilityId);
   }
@@ -16,6 +19,8 @@ export async function dismissNotification(availabilityId: string) {
 }
 
 export async function dismissAllNotifications(availabilityIds: string[]) {
+  await requireSession();
+
   for (const id of availabilityIds) {
     if (!mockCurrentUser.dismissedNotificationIds.includes(id)) {
       mockCurrentUser.dismissedNotificationIds.push(id);

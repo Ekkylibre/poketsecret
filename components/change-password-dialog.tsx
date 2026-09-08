@@ -14,7 +14,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 
 export function ChangePasswordDialog() {
   const [open, setOpen] = useState(false);
@@ -50,21 +50,21 @@ export function ChangePasswordDialog() {
             <label htmlFor="currentPassword" className="text-sm font-medium">
               Mot de passe actuel
             </label>
-            <Input id="currentPassword" name="currentPassword" type="password" required />
+            <PasswordInput id="currentPassword" name="currentPassword" required />
           </div>
 
           <div className="flex flex-col gap-1.5">
             <label htmlFor="newPassword" className="text-sm font-medium">
               Nouveau mot de passe
             </label>
-            <Input id="newPassword" name="newPassword" type="password" required minLength={8} />
+            <PasswordInput id="newPassword" name="newPassword" required minLength={8} />
           </div>
 
           <div className="flex flex-col gap-1.5">
             <label htmlFor="confirmPassword" className="text-sm font-medium">
               Confirmer le nouveau mot de passe
             </label>
-            <Input id="confirmPassword" name="confirmPassword" type="password" required minLength={8} />
+            <PasswordInput id="confirmPassword" name="confirmPassword" required minLength={8} />
           </div>
 
           {state?.error && <p className="text-destructive text-sm">{state.error}</p>}

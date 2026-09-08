@@ -230,7 +230,7 @@ export const mockCurrentUser: UserProfile = {
   id: "user-1",
   username: "Didoux",
   reputation: 82,
-  isPremium: false,
+  isPremium: true,
   followedProductIds: ["prod-1", "prod-2", "prod-4", "prod-5"],
   pinnedStoreIds: ["store-1"],
   followedStoreIds: ["store-1"],

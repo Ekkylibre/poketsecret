@@ -4,9 +4,11 @@ import Link from "next/link";
 import { useActionState } from "react";
 
 import { signUpWithEmail } from "./actions";
+import { GoogleSignInButton } from "@/components/google-sign-in-button";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 
 export default function SignUpPage() {
   const [state, formAction, isPending] = useActionState(signUpWithEmail, null);
@@ -40,7 +42,7 @@ export default function SignUpPage() {
             <label htmlFor="password" className="text-sm font-medium">
               Mot de passe
             </label>
-            <Input id="password" name="password" type="password" required minLength={8} />
+            <PasswordInput id="password" name="password" required minLength={8} />
           </div>
 
           {state?.error && <p className="text-destructive text-sm">{state.error}</p>}
@@ -49,6 +51,14 @@ export default function SignUpPage() {
             {isPending ? "Création..." : "Créer mon compte"}
           </Button>
         </form>
+
+        <div className="flex items-center gap-3">
+          <div className="bg-border h-px flex-1" />
+          <span className="text-muted-foreground text-xs">ou</span>
+          <div className="bg-border h-px flex-1" />
+        </div>
+
+        <GoogleSignInButton label="Continuer avec Google" />
 
         <p className="text-muted-foreground text-center text-sm">
           Déjà un compte ?{" "}

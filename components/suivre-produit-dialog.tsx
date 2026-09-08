@@ -1,7 +1,7 @@
 "use client";
 
 import { Boxes, Check, Gift, type LucideIcon, MoreHorizontal, Package, Plus } from "lucide-react";
-import { type FormEvent, useActionState, useMemo, useState } from "react";
+import { useActionState, useMemo, useState } from "react";
 
 import { suivreNouveauProduit } from "@/app/(tabs)/magasins/actions";
 import { Button } from "@/components/ui/button";
@@ -14,7 +14,6 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 import { distinctSeries, productTypeLabels, setNamesForSeries } from "@/lib/product-options";
 import type { Product, ProductType } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -67,19 +66,6 @@ function CoverTile({
   );
 }
 
-function NewTile({ label, onClick }: { label: string; onClick: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="border-input text-muted-foreground hover:bg-accent flex aspect-square flex-col items-center justify-center gap-1 rounded-lg border border-dashed"
-    >
-      <Plus className="size-5" />
-      <span className="text-xs">{label}</span>
-    </button>
-  );
-}
-
 function TypeTile({
   type,
   selected,
@@ -94,8 +80,11 @@ function TypeTile({
     <button
       type="button"
       onClick={onClick}
+      // ring-inset : un ring classique déborde de 2px hors de la tuile, et se fait couper
+      // par l'overflow-hidden du viewport qui gère le slide entre étapes. En inset, il
+      // reste toujours dans la boîte de la tuile, donc jamais rogné.
       className={cn(
-        "relative flex aspect-square flex-col items-center justify-center gap-1.5 overflow-hidden rounded-lg bg-gradient-to-br text-white shadow-sm ring-2 ring-transparent transition",
+        "relative flex aspect-square flex-col items-center justify-center gap-1.5 overflow-hidden rounded-lg bg-gradient-to-br text-white shadow-sm ring-2 ring-inset ring-transparent transition",
         typeTileColors[type],
         selected && "ring-primary"
       )}
@@ -118,10 +107,6 @@ export function SuivreProduitDialog({ products }: { products: Product[] }) {
   const [series, setSeries] = useState("");
   const [setName, setSetName] = useState("");
   const [selectedTypes, setSelectedTypes] = useState<ProductType[]>([]);
-  const [seriesInputMode, setSeriesInputMode] = useState(false);
-  const [seriesInput, setSeriesInput] = useState("");
-  const [setNameInputMode, setSetNameInputMode] = useState(false);
-  const [setNameInput, setSetNameInput] = useState("");
   const [state, formAction, isPending] = useActionState(suivreNouveauProduit, null);
 
   const seriesOptions = useMemo(() => distinctSeries(products), [products]);
@@ -132,10 +117,6 @@ export function SuivreProduitDialog({ products }: { products: Product[] }) {
     setSeries("");
     setSetName("");
     setSelectedTypes([]);
-    setSeriesInputMode(false);
-    setSeriesInput("");
-    setSetNameInputMode(false);
-    setSetNameInput("");
   }
 
   function toggleType(type: ProductType) {
@@ -163,27 +144,12 @@ export function SuivreProduitDialog({ products }: { products: Product[] }) {
   function selectSeries(value: string) {
     setSeries(value);
     setSetName("");
-    setSetNameInputMode(setNamesForSeries(products, value).length === 0);
     setStep(2);
-  }
-
-  function confirmSeriesInput(e: FormEvent) {
-    e.preventDefault();
-    const value = seriesInput.trim();
-    if (!value) return;
-    selectSeries(value);
   }
 
   function selectSetName(value: string) {
     setSetName(value);
     setStep(3);
-  }
-
-  function confirmSetNameInput(e: FormEvent) {
-    e.preventDefault();
-    const value = setNameInput.trim();
-    if (!value) return;
-    selectSetName(value);
   }
 
   return (
@@ -231,26 +197,7 @@ export function SuivreProduitDialog({ products }: { products: Product[] }) {
                   {seriesOptions.map((s) => (
                     <CoverTile key={s} label={s} onClick={() => selectSeries(s)} />
                   ))}
-                  {!seriesInputMode && (
-                    <NewTile label="Nouvelle" onClick={() => setSeriesInputMode(true)} />
-                  )}
                 </div>
-                {seriesInputMode && (
-                  <div className="flex gap-2">
-                    <Input
-                      value={seriesInput}
-                      onChange={(e) => setSeriesInput(e.target.value)}
-                      placeholder="Écarlate et Violet"
-                      autoFocus
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") confirmSeriesInput(e);
-                      }}
-                    />
-                    <Button type="button" onClick={confirmSeriesInput}>
-                      Valider
-                    </Button>
-                  </div>
-                )}
               </div>
 
               <div className="flex w-full shrink-0 flex-col gap-2">
@@ -259,26 +206,7 @@ export function SuivreProduitDialog({ products }: { products: Product[] }) {
                   {setNameOptions.map((s) => (
                     <CoverTile key={s} label={s} onClick={() => selectSetName(s)} />
                   ))}
-                  {!setNameInputMode && (
-                    <NewTile label="Nouvelle" onClick={() => setSetNameInputMode(true)} />
-                  )}
                 </div>
-                {setNameInputMode && (
-                  <div className="flex gap-2">
-                    <Input
-                      value={setNameInput}
-                      onChange={(e) => setSetNameInput(e.target.value)}
-                      placeholder="Évolutions Prismatiques"
-                      autoFocus
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") confirmSetNameInput(e);
-                      }}
-                    />
-                    <Button type="button" onClick={confirmSetNameInput}>
-                      Valider
-                    </Button>
-                  </div>
-                )}
               </div>
 
               <div className="flex w-full shrink-0 flex-col gap-2">

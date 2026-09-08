@@ -46,7 +46,7 @@ export function BottomNav({ unreadCount = 0 }: { unreadCount?: number }) {
               {href === "/notifications" && unreadCount > 0 && (
                 <span
                   aria-hidden
-                  className="bg-primary text-primary-foreground border-background absolute top-0.5 right-1 flex h-4 min-w-4 items-center justify-center rounded-full border-2 px-1 text-[10px] leading-none font-semibold"
+                  className="bg-primary text-primary-foreground border-background absolute top-0.5 right-1 flex size-5 items-center justify-center rounded-full border-2 text-[9px] leading-none font-semibold"
                 >
                   {unreadCount > 9 ? "9+" : unreadCount}
                 </span>

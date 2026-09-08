@@ -14,7 +14,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 
 export function DeleteAccountDialog() {
   const [open, setOpen] = useState(false);
@@ -47,7 +47,7 @@ export function DeleteAccountDialog() {
             <label htmlFor="deletePassword" className="text-sm font-medium">
               Mot de passe
             </label>
-            <Input id="deletePassword" name="password" type="password" required />
+            <PasswordInput id="deletePassword" name="password" required />
           </div>
 
           {state?.error && <p className="text-destructive text-sm">{state.error}</p>}

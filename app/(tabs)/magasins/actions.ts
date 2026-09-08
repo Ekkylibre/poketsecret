@@ -3,7 +3,7 @@
 import { randomUUID } from "crypto";
 import { revalidatePath } from "next/cache";
 
-import { auth } from "@/lib/auth/server";
+import { requireSession } from "@/lib/auth/require-session";
 import {
   mockAvailabilities,
   mockAvailabilityReports,
@@ -24,10 +24,7 @@ import type {
 } from "@/lib/types";
 
 export async function likeStore(storeId: string) {
-  const { data: session } = await auth.getSession();
-  if (!session?.user) {
-    return { error: "Connecte-toi pour liker un magasin." };
-  }
+  await requireSession();
 
   const store = mockStores.find((s) => s.id === storeId);
   if (!store) {
@@ -40,10 +37,7 @@ export async function likeStore(storeId: string) {
 }
 
 export async function reportStore(storeId: string) {
-  const { data: session } = await auth.getSession();
-  if (!session?.user) {
-    return { error: "Connecte-toi pour signaler un magasin." };
-  }
+  await requireSession();
 
   const store = mockStores.find((s) => s.id === storeId);
   if (!store) {
@@ -65,8 +59,7 @@ export async function signalerMagasin(
   _prevState: SignalementMagasinFormState | null,
   formData: FormData
 ): Promise<SignalementMagasinFormState> {
-  const { data: session } = await auth.getSession();
-  const userId = session?.user?.id ?? mockCurrentUser.id;
+  const user = await requireSession();
 
   const store = mockStores.find((s) => s.id === storeId);
   if (!store) {
@@ -84,7 +77,7 @@ export async function signalerMagasin(
     storeId,
     reason,
     comment: comment || undefined,
-    reportedById: userId,
+    reportedById: user.id,
     reportedAt: new Date().toISOString(),
   };
   mockStoreReports.push(report);
@@ -97,6 +90,8 @@ export async function signalerMagasin(
 
 /** Épingler = mise en avant/accès rapide uniquement, aucune notification associée. */
 export async function togglePinStore(storeId: string) {
+  await requireSession();
+
   const store = mockStores.find((s) => s.id === storeId);
   if (!store) {
     return { error: "Magasin introuvable." };
@@ -116,6 +111,8 @@ export async function togglePinStore(storeId: string) {
 
 /** Suivi = déclenche les notifications de réassort pour ce magasin, indépendant du favori. */
 export async function toggleFollowStore(storeId: string) {
+  await requireSession();
+
   const store = mockStores.find((s) => s.id === storeId);
   if (!store) {
     return { error: "Magasin introuvable." };
@@ -137,6 +134,8 @@ export async function toggleFollowStore(storeId: string) {
 }
 
 export async function toggleFollowProduct(productId: string) {
+  await requireSession();
+
   const product = mockProducts.find((p) => p.id === productId);
   if (!product) {
     return { error: "Produit introuvable." };
@@ -169,6 +168,8 @@ export async function suivreNouveauProduit(
   _prevState: SuivreProduitFormState | null,
   formData: FormData
 ): Promise<SuivreProduitFormState> {
+  await requireSession();
+
   const series = (formData.get("series") as string)?.trim();
   const setName = (formData.get("setName") as string)?.trim();
   const types = formData.getAll("type") as string[];
@@ -231,9 +232,7 @@ export async function enregistrerProduit(
   _prevState: ProduitFormState | null,
   formData: FormData
 ): Promise<ProduitFormState> {
-  // Auth désactivée temporairement en phase de test sur données mock.
-  const { data: session } = await auth.getSession();
-  const userId = session?.user?.id ?? mockCurrentUser.id;
+  const user = await requireSession();
 
   const store = mockStores.find((s) => s.id === storeId);
   if (!store) {
@@ -279,7 +278,7 @@ export async function enregistrerProduit(
     availability.price = price;
     availability.quantity = quantity;
     availability.nature = nature;
-    availability.lastModifiedById = userId;
+    availability.lastModifiedById = user.id;
     availability.lastModifiedAt = new Date().toISOString();
   } else {
     const series = (formData.get("series") as string)?.trim();
@@ -317,7 +316,7 @@ export async function enregistrerProduit(
       id: randomUUID(),
       productId: product.id,
       storeId,
-      reportedById: userId,
+      reportedById: user.id,
       reportedAt: new Date().toISOString(),
       price,
       quantity,
@@ -347,6 +346,8 @@ export async function voterDisponibilite(
   previousVote: VoteValue,
   newVote: VoteValue
 ) {
+  await requireSession();
+
   const availability = mockAvailabilities.find((a) => a.id === availabilityId);
   if (!availability) {
     return { error: "Disponibilité introuvable." };
@@ -366,6 +367,8 @@ export async function voterDisponibilite(
 }
 
 export async function togglePinDisponibilite(availabilityId: string) {
+  await requireSession();
+
   const availability = mockAvailabilities.find((a) => a.id === availabilityId);
   if (!availability) {
     return { error: "Disponibilité introuvable." };
@@ -386,8 +389,7 @@ export async function signalerDisponibilite(
   _prevState: SignalementFormState | null,
   formData: FormData
 ): Promise<SignalementFormState> {
-  const { data: session } = await auth.getSession();
-  const userId = session?.user?.id ?? mockCurrentUser.id;
+  const user = await requireSession();
 
   const availability = mockAvailabilities.find((a) => a.id === availabilityId);
   if (!availability) {
@@ -405,7 +407,7 @@ export async function signalerDisponibilite(
     availabilityId,
     reason,
     comment: comment || undefined,
-    reportedById: userId,
+    reportedById: user.id,
     reportedAt: new Date().toISOString(),
   };
   mockAvailabilityReports.push(report);

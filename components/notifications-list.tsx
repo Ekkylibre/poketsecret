@@ -79,7 +79,10 @@ export function NotificationsList({
     // dismissedNotificationIds devient complet — ce qui coupe la cascade en plein vol
     // vu la latence quasi nulle des données mock. On attend donc la fin de l'animation
     // (dernier délai + durée de la transition de sortie) avant d'appeler le serveur.
-    const totalDurationMs = exitOrder.size * CLEAR_ALL_STAGGER_MS + 250;
+    // Chaque carte joue le slide (0.2s) puis l'effondrement de hauteur (0.2s) avant de
+    // se démonter — la dernière carte lancée doit avoir fini les deux avant d'appeler
+    // le serveur, sinon la page bascule sur l'état vide en plein milieu de la cascade.
+    const totalDurationMs = exitOrder.size * CLEAR_ALL_STAGGER_MS + 450;
     setTimeout(() => {
       startTransition(async () => {
         await dismissAllNotifications(allIds);

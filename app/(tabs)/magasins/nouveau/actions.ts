@@ -3,9 +3,9 @@
 import { randomUUID } from "crypto";
 import { revalidatePath } from "next/cache";
 
-import { auth } from "@/lib/auth/server";
+import { requireSession } from "@/lib/auth/require-session";
 import { parseHoursFromFormData } from "@/lib/hours";
-import { mockCurrentUser, mockStores } from "@/lib/mock-data";
+import { mockStores } from "@/lib/mock-data";
 import type { Store } from "@/lib/types";
 import { PHONE_PATTERN } from "@/lib/utils";
 
@@ -18,9 +18,7 @@ export async function creerMagasin(
   _prevState: CreerMagasinState | null,
   formData: FormData
 ): Promise<CreerMagasinState> {
-  // Auth désactivée temporairement en phase de test sur données mock.
-  const { data: session } = await auth.getSession();
-  const userId = session?.user?.id ?? mockCurrentUser.id;
+  const user = await requireSession();
 
   const name = (formData.get("name") as string)?.trim();
   const address = (formData.get("address") as string)?.trim();
@@ -51,7 +49,7 @@ export async function creerMagasin(
     lng: Number.isFinite(lng) && lng !== 0 ? lng : 0,
     phone: phone || undefined,
     hours: Object.keys(hours).length > 0 ? hours : undefined,
-    createdById: userId,
+    createdById: user.id,
     createdAt: new Date().toISOString(),
     likes: 0,
     reports: 0,
@@ -73,8 +71,7 @@ export async function modifierMagasin(
   _prevState: CreerMagasinState | null,
   formData: FormData
 ): Promise<CreerMagasinState> {
-  const { data: session } = await auth.getSession();
-  const userId = session?.user?.id ?? mockCurrentUser.id;
+  const user = await requireSession();
 
   const store = mockStores.find((s) => s.id === storeId);
   if (!store) {
@@ -107,7 +104,7 @@ export async function modifierMagasin(
   if (Number.isFinite(lng) && lng !== 0) store.lng = lng;
   store.phone = phone || undefined;
   store.hours = Object.keys(hours).length > 0 ? hours : undefined;
-  store.lastModifiedById = userId;
+  store.lastModifiedById = user.id;
   store.lastModifiedAt = new Date().toISOString();
 
   revalidatePath("/magasins");
