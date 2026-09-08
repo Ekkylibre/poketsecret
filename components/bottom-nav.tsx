@@ -11,7 +11,7 @@ const tabs = [
   { href: "/profil", label: "Profil", icon: User },
 ];
 
-export function BottomNav() {
+export function BottomNav({ unreadCount = 0 }: { unreadCount?: number }) {
   const pathname = usePathname();
   const activeIndex = tabs.findIndex(({ href }) =>
     href === "/" ? pathname === "/" : pathname.startsWith(href)
@@ -41,8 +41,16 @@ export function BottomNav() {
               isActive ? "text-foreground" : "text-muted-foreground"
             }`}
           >
-            <span className="flex size-10 items-center justify-center">
+            <span className="relative flex size-10 items-center justify-center">
               <Icon className="size-5" strokeWidth={isActive ? 2.5 : 2} />
+              {href === "/notifications" && unreadCount > 0 && (
+                <span
+                  aria-hidden
+                  className="bg-primary text-primary-foreground border-background absolute top-0.5 right-1 flex h-4 min-w-4 items-center justify-center rounded-full border-2 px-1 text-[10px] leading-none font-semibold"
+                >
+                  {unreadCount > 9 ? "9+" : unreadCount}
+                </span>
+              )}
             </span>
           </Link>
         );

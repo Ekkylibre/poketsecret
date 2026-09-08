@@ -12,7 +12,7 @@ import {
   X,
 } from "lucide-react";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { AjouterProduitDialog } from "@/components/produit-dialog";
 import { AvailabilityCard } from "@/components/availability-card";
@@ -22,7 +22,8 @@ import {
   FiltresProduitsDialog,
   type ProductFilters,
 } from "@/components/filtres-produits-dialog";
-import { FavoriteStoreButton } from "@/components/favorite-store-button";
+import { FollowStoreButton } from "@/components/follow-store-button";
+import { PinStoreButton } from "@/components/pin-store-button";
 import { useLocation } from "@/components/location-provider";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -116,17 +117,23 @@ function StoreCard({
   hoursToday,
   storeAvailabilities,
   products,
-  isFavorite,
+  isPinned,
+  isFollowed,
+  followedProductIds,
   isExpanded,
   onToggle,
+  highlightedDispoId,
 }: {
   store: Store;
   hoursToday?: DayHours;
   storeAvailabilities: Availability[];
   products: Product[];
-  isFavorite: boolean;
+  isPinned: boolean;
+  isFollowed: boolean;
+  followedProductIds: string[];
   isExpanded: boolean;
   onToggle: () => void;
+  highlightedDispoId?: string;
 }) {
   const [sortField, setSortField] = useState<SortField>(null);
   const [sortDir, setSortDir] = useState<SortDir>("desc");
@@ -158,10 +165,10 @@ function StoreCard({
   }, [storeAvailabilities, sortField, sortDir]);
 
   return (
-    <Card className="hover:bg-white/3 gap-0 p-3 transition-colors">
+    <Card id={`magasin-${store.id}`} className="hover:bg-white/3 gap-0 p-3 transition-colors">
       <div
         className={cn(
-          "hover:bg-accent/30 -m-3 flex cursor-pointer items-center gap-3 p-3 transition-colors",
+          "hover:bg-accent/30 -m-3 flex cursor-pointer items-stretch transition-colors",
           isExpanded ? "rounded-t-xl" : "rounded-xl"
         )}
       >
@@ -169,22 +176,24 @@ function StoreCard({
           type="button"
           onClick={onToggle}
           aria-expanded={isExpanded}
-          className="flex min-w-0 flex-1 items-center gap-3 text-left"
+          className="flex min-w-0 flex-1 items-stretch text-left"
         >
-          <div className="bg-muted flex size-11 shrink-0 items-center justify-center rounded-lg">
-            <StoreIcon className="text-muted-foreground size-5" />
-          </div>
-          <div className="min-w-0 flex-1">
+          {/* justify-center plutôt qu'un simple py-3 : sans icône pour donner une hauteur
+              de référence à la ligne, celle-ci suit désormais la colonne de boutons à
+              droite (souvent plus haute), et le texte calé en haut se retrouvait collé
+              dans le coin au lieu d'occuper l'espace disponible. */}
+          <div className="flex min-w-0 flex-1 flex-col justify-center gap-0.5 py-3 pl-3">
             <p className="truncate text-sm font-semibold">{store.name}</p>
             <p className="text-muted-foreground truncate text-xs">{formatStoreAddress(store)}</p>
-            <p className="text-muted-foreground/70 mt-0.5 flex items-center gap-1 text-xs">
+            <p className="text-muted-foreground/70 flex items-center gap-1 text-xs">
               <Clock className="size-3 shrink-0" />
               {hoursToday ? formatDayHours(hoursToday) : "Horaires non renseignés"}
             </p>
           </div>
         </button>
-        <div className="flex items-center gap-1">
-          <FavoriteStoreButton storeId={store.id} initialFavorite={isFavorite} className="self-start" />
+        <div className="flex items-center gap-1 py-3 pr-3">
+          <PinStoreButton storeId={store.id} initialPinned={isPinned} className="self-start" />
+          <FollowStoreButton storeId={store.id} initialFollowed={isFollowed} className="self-start" />
           <div className="flex flex-col items-center gap-1">
             <AjouterProduitDialog storeId={store.id} products={products} />
             <button
@@ -232,6 +241,8 @@ function StoreCard({
                       product={product}
                       storeId={store.id}
                       products={products}
+                      isFollowed={followedProductIds.includes(product.id)}
+                      highlighted={availability.id === highlightedDispoId}
                     />
                   );
                 })}
@@ -248,18 +259,31 @@ export function MagasinsList({
   stores,
   availabilities,
   products,
-  favoriteStoreIds,
+  pinnedStoreIds,
+  followedStoreIds,
+  followedProductIds,
+  targetStoreId,
+  targetDispoId,
 }: {
   stores: Store[];
   availabilities: Availability[];
   products: Product[];
-  favoriteStoreIds: string[];
+  pinnedStoreIds: string[];
+  followedStoreIds: string[];
+  followedProductIds: string[];
+  /** Arrivée depuis une notification : magasin à déplier et faire défiler à l'ouverture. */
+  targetStoreId?: string;
+  /** Disponibilité à surligner dans la grille une fois le magasin déplié. */
+  targetDispoId?: string;
 }) {
   const { center, radiusKm } = useLocation();
   const [query, setQuery] = useState("");
   const [showSuggestions, setShowSuggestions] = useState(false);
-  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(() =>
+    targetStoreId ? new Set([targetStoreId]) : new Set()
+  );
   const [filters, setFilters] = useState<ProductFilters>(emptyFilters);
+  const [highlightedDispoId, setHighlightedDispoId] = useState(targetDispoId);
 
   const today = getTodayWeekday();
 
@@ -277,10 +301,42 @@ export function MagasinsList({
     setShowSuggestions(false);
   }
 
+  // Le magasin visé depuis une notification doit apparaître même hors du rayon affiché,
+  // sinon le lien "au bon endroit" peut mener à une liste vide.
   const storesInRadius = useMemo(
-    () => stores.filter((s) => (s.lat !== 0 || s.lng !== 0) && distanceKm(center, s) <= radiusKm),
-    [stores, center, radiusKm]
+    () =>
+      stores.filter(
+        (s) =>
+          s.id === targetStoreId || ((s.lat !== 0 || s.lng !== 0) && distanceKm(center, s) <= radiusKm)
+      ),
+    [stores, center, radiusKm, targetStoreId]
   );
+
+  useEffect(() => {
+    if (!targetStoreId) return;
+    document.getElementById(`magasin-${targetStoreId}`)?.scrollIntoView({ block: "start" });
+    if (!targetDispoId) return;
+    // Laisse le temps à la grille de produits (dépliée juste au-dessus) de se monter avant
+    // d'y chercher la carte à surligner.
+    const timeout = setTimeout(() => {
+      document.getElementById(`dispo-${targetDispoId}`)?.scrollIntoView({ block: "center" });
+    }, 150);
+    return () => clearTimeout(timeout);
+  }, [targetStoreId, targetDispoId]);
+
+  // Le reflet tourne en boucle tant que le produit visé n'a pas été vu : un clic n'importe
+  // où ailleurs sur la page l'éteint (clic sur la carte elle-même = interaction, pas "ailleurs").
+  useEffect(() => {
+    if (!highlightedDispoId) return;
+    function handlePointerDown(e: PointerEvent) {
+      const target = e.target as HTMLElement;
+      if (!target.closest(`#dispo-${highlightedDispoId}`)) {
+        setHighlightedDispoId(undefined);
+      }
+    }
+    document.addEventListener("pointerdown", handlePointerDown);
+    return () => document.removeEventListener("pointerdown", handlePointerDown);
+  }, [highlightedDispoId]);
 
   const trimmedQuery = query.trim().toLowerCase();
 
@@ -336,7 +392,7 @@ export function MagasinsList({
 
   return (
     <div className="flex flex-1 flex-col">
-      <header className="bg-background sticky top-0 z-10 flex flex-col gap-3 border-b p-4">
+      <header className="bg-background sticky top-0 z-10 flex flex-col gap-3 p-4">
         <div className="flex gap-2">
           <div className="relative min-w-0 flex-1">
             <Search className="text-muted-foreground absolute top-1/2 left-3 size-4 -translate-y-1/2" />
@@ -454,9 +510,12 @@ export function MagasinsList({
                 hoursToday={store.hours?.[today]}
                 storeAvailabilities={filteredAvailabilities.filter((a) => a.storeId === store.id)}
                 products={products}
-                isFavorite={favoriteStoreIds.includes(store.id)}
+                isPinned={pinnedStoreIds.includes(store.id)}
+                isFollowed={followedStoreIds.includes(store.id)}
+                followedProductIds={followedProductIds}
                 isExpanded={expandedIds.has(store.id)}
                 onToggle={() => toggleExpanded(store.id)}
+                highlightedDispoId={store.id === targetStoreId ? highlightedDispoId : undefined}
               />
             ))}
           </>

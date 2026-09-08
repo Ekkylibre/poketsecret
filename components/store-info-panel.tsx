@@ -1,4 +1,7 @@
+"use client";
+
 import { MapPin, Phone, X } from "lucide-react";
+import { useState } from "react";
 
 import { likeStore, reportStore } from "@/app/(tabs)/magasins/actions";
 import { ModifierMagasinDialog } from "@/components/nouveau-magasin-dialog";
@@ -20,13 +23,20 @@ export function StoreInfoPanel({
   onClose: () => void;
   className?: string;
 }) {
+  const [closing, setClosing] = useState(false);
+
   return (
-    <Card className={cn("gap-3 p-4", className)}>
+    <Card
+      className={cn(closing ? "animate-panel-slide-out" : "animate-panel-slide-in", "gap-3 p-4", className)}
+      onAnimationEnd={() => {
+        if (closing) onClose();
+      }}
+    >
       <div className="flex items-start justify-between gap-2">
         <p className="min-w-0 flex-1 truncate text-sm font-semibold">{store.name}</p>
         <button
           type="button"
-          onClick={onClose}
+          onClick={() => setClosing(true)}
           aria-label="Fermer la fiche"
           className="text-muted-foreground hover:bg-accent -mt-1 -mr-1 flex size-6 shrink-0 items-center justify-center rounded-md"
         >
@@ -64,7 +74,7 @@ export function StoreInfoPanel({
         {relativeTime(store.lastModifiedById ? store.lastModifiedAt! : store.createdAt)}
       </p>
 
-      <div className="flex items-center justify-between gap-2">
+      <div className="mt-auto flex items-center justify-between gap-2">
         <StoreVoteButtons
           storeId={store.id}
           likes={store.likes}

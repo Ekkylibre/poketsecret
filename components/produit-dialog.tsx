@@ -39,6 +39,7 @@ import { Card } from "@/components/ui/card";
 import { ConfidenceBadge } from "@/components/confidence-badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { makeConfetti, type ConfettiPiece } from "@/lib/confetti";
 import { mockCurrentUser } from "@/lib/mock-data";
 import {
   distinctSeries,
@@ -59,28 +60,6 @@ import type {
 import { cn } from "@/lib/utils";
 
 const natureOptions: AvailabilityNature[] = ["Nouveau", "Promo", "Réassort"];
-
-const CONFETTI_COLORS = ["#facc15", "#38bdf8", "#34d399", "#f472b6", "#a78bfa"];
-
-interface ConfettiPiece {
-  left: number;
-  color: string;
-  delay: number;
-  duration: number;
-  drift: number;
-  rotation: number;
-}
-
-function makeConfetti(count: number): ConfettiPiece[] {
-  return Array.from({ length: count }, () => ({
-    left: Math.random() * 100,
-    color: CONFETTI_COLORS[Math.floor(Math.random() * CONFETTI_COLORS.length)],
-    delay: Math.random() * 0.3,
-    duration: 1.1 + Math.random() * 0.8,
-    drift: (Math.random() - 0.5) * 60,
-    rotation: 360 + Math.random() * 360,
-  }));
-}
 
 function ProduitDialog({
   storeId,
@@ -103,6 +82,7 @@ function ProduitDialog({
   const [confetti, setConfetti] = useState<ConfettiPiece[]>([]);
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [stepError, setStepError] = useState<string | null>(null);
+  const [showGuidelines, setShowGuidelines] = useState(false);
   const [showPhotoGuidelines, setShowPhotoGuidelines] = useState(false);
   const [photoDataUrl, setPhotoDataUrl] = useState<string | null>(availability?.photoUrl ?? null);
   const seriesOptions = useMemo(() => distinctSeries(products), [products]);
@@ -125,10 +105,12 @@ function ProduitDialog({
     setShowSuccess(true);
   }
 
+  // stopPropagation seul (pas de preventDefault) : on doit empêcher le clic de remonter
+  // au clic de la ligne parente (StoreCard/AvailabilityCard), mais le comportement par
+  // défaut de Radix doit rester actif, sinon `onOpenChange` ne se déclenche jamais et
+  // handleOpenChange (reset du step, de la photo, de l'avertissement...) ne tourne pas.
   function handleTriggerClick(e: MouseEvent) {
-    e.preventDefault();
     e.stopPropagation();
-    setOpen(true);
   }
 
   function handleOpenChange(next: boolean) {
@@ -138,6 +120,7 @@ function ProduitDialog({
       setShowSuccess(false);
       setStep(1);
       setStepError(null);
+      setShowGuidelines(true);
       setShowPhotoGuidelines(false);
       setPhotoDataUrl(availability?.photoUrl ?? null);
       const resetSeries = product?.series ?? "";
@@ -244,25 +227,28 @@ function ProduitDialog({
       </DialogTrigger>
       <DialogContent
         onEscapeKeyDown={(e) => {
-          if (!showPhotoGuidelines) return;
+          if (!showGuidelines && !showPhotoGuidelines) return;
           e.preventDefault();
+          setShowGuidelines(false);
           setShowPhotoGuidelines(false);
         }}
         onPointerDownOutside={(e) => {
-          if (!showPhotoGuidelines) return;
+          if (!showGuidelines && !showPhotoGuidelines) return;
           e.preventDefault();
+          setShowGuidelines(false);
           setShowPhotoGuidelines(false);
         }}
         onInteractOutside={(e) => {
-          if (!showPhotoGuidelines) return;
+          if (!showGuidelines && !showPhotoGuidelines) return;
           e.preventDefault();
+          setShowGuidelines(false);
           setShowPhotoGuidelines(false);
         }}
       >
         <div
           className={cn(
             "flex min-w-0 flex-col gap-4 transition-all duration-300",
-            showPhotoGuidelines && "pointer-events-none brightness-[0.4]"
+            (showGuidelines || showPhotoGuidelines) && "pointer-events-none brightness-[0.4]"
           )}
         >
           <DialogHeader>
@@ -303,8 +289,13 @@ function ProduitDialog({
             </div>
           )}
 
+          <div className="overflow-hidden">
+            <div
+              className="flex transition-transform duration-300 ease-in-out"
+              style={{ transform: `translateX(-${(step - 1) * 100}%)` }}
+            >
           {mode === "create" && (
-            <div className={step === 1 ? "flex flex-col gap-4" : "hidden"}>
+            <div className="flex w-full shrink-0 flex-col gap-4">
               <button
                 type="button"
                 onClick={handlePhotoClick}
@@ -334,13 +325,7 @@ function ProduitDialog({
             </div>
           )}
 
-          <div
-            className={
-              (mode === "create" && step === 2) || (mode === "edit" && step === 1)
-                ? "flex flex-col gap-4"
-                : "hidden"
-            }
-          >
+          <div className="flex w-full shrink-0 flex-col gap-4">
             {mode === "create" && (
               <>
               <div className="flex gap-3">
@@ -525,20 +510,15 @@ function ProduitDialog({
           </div>
 
           {(() => {
-            const previewStep = mode === "create" ? 3 : 2;
             return (
-              <div className={step === previewStep ? "flex flex-col gap-3" : "hidden"}>
+              <div className="flex w-full shrink-0 flex-col gap-3">
                 <p className="text-sm font-medium">Aperçu</p>
               {/* Classes copiées à l'identique d'AvailabilityCard (photo + bloc infos) pour que
                   l'aperçu ait les mêmes proportions que la vraie card. Largeur réduite à la
                   moitié du dialogue pour reproduire sa taille réelle dans la grille à 2 colonnes,
                   au lieu d'étirer la photo sur toute la largeur du dialogue. */}
-              <Card
-                className={cn(
-                  "mx-auto h-full w-1/2 min-w-[140px] gap-1.5 p-2",
-                  showSuccess && "animate-card-launch"
-                )}
-              >
+              <div className="relative mx-auto w-1/2 min-w-[140px]">
+              <Card className={cn("h-full gap-1.5 p-2", showSuccess && "animate-card-launch")}>
                 <div className="bg-muted text-muted-foreground relative -mx-2 -mt-2 flex aspect-square shrink-0 items-center justify-center overflow-hidden rounded-t-xl">
                   {photoDataUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element -- data URL locale, pas d'optimisation next/image possible
@@ -637,6 +617,37 @@ function ProduitDialog({
                   </div>
                 </div>
               </Card>
+              {showSuccess && (
+                <div className="pointer-events-none absolute inset-0 z-30 flex flex-col items-center justify-center gap-3 overflow-hidden rounded-2xl">
+                  {confetti.map((piece, i) => (
+                    <span
+                      key={i}
+                      aria-hidden
+                      className="confetti-piece absolute top-0 size-2 rounded-sm"
+                      style={
+                        {
+                          left: `${piece.left}%`,
+                          backgroundColor: piece.color,
+                          animationDuration: `${piece.duration}s`,
+                          animationDelay: `${piece.delay}s`,
+                          "--confetti-drift": `${piece.drift}px`,
+                          "--confetti-rotation": `${piece.rotation}deg`,
+                        } as CSSProperties
+                      }
+                    />
+                  ))}
+                  <div className="animate-success-pop bg-primary text-primary-foreground flex items-center gap-2 rounded-full px-4 py-2 shadow-lg">
+                    <PartyPopper className="size-4" />
+                    <span className="text-sm font-semibold">Publié !</span>
+                  </div>
+                  <p className="animate-success-pop text-muted-foreground bg-card rounded-full px-3 py-1 text-xs shadow-sm">
+                    {mode === "create"
+                      ? "Ton produit a été ajouté avec succès."
+                      : "Tes modifications ont été enregistrées."}
+                  </p>
+                </div>
+              )}
+              </div>
                 {!showSuccess && (
                   <p className="text-muted-foreground text-xs">
                     {mode === "create"
@@ -647,6 +658,8 @@ function ProduitDialog({
               </div>
             );
           })()}
+            </div>
+          </div>
 
           {stepError && <p className="text-destructive text-sm">{stepError}</p>}
           {state?.error && <p className="text-destructive text-sm">{state.error}</p>}
@@ -706,34 +719,70 @@ function ProduitDialog({
           </form>
         </div>
 
-        {showSuccess && (
-          <div className="pointer-events-none absolute inset-0 z-30 flex flex-col items-center justify-center gap-3 overflow-hidden rounded-2xl">
-            {confetti.map((piece, i) => (
-              <span
-                key={i}
+        {showGuidelines && (
+          <div
+            className="absolute inset-0 z-20 flex items-center justify-center p-4"
+            onClick={() => setShowGuidelines(false)}
+          >
+            <div
+              role="button"
+              tabIndex={0}
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowGuidelines(false);
+              }}
+              onKeyDown={(e) => {
+                if (e.key !== "Enter" && e.key !== " ") return;
+                e.preventDefault();
+                e.stopPropagation();
+                setShowGuidelines(false);
+              }}
+              className="animate-alert-in border-amber-500/50 bg-card text-muted-foreground relative flex w-full cursor-pointer flex-col gap-2 overflow-hidden rounded-md border p-4 pt-5 pb-5 text-xs shadow-2xl"
+            >
+              <div
                 aria-hidden
-                className="confetti-piece absolute top-0 size-2 rounded-sm"
-                style={
-                  {
-                    left: `${piece.left}%`,
-                    backgroundColor: piece.color,
-                    animationDuration: `${piece.duration}s`,
-                    animationDelay: `${piece.delay}s`,
-                    "--confetti-drift": `${piece.drift}px`,
-                    "--confetti-rotation": `${piece.rotation}deg`,
-                  } as CSSProperties
-                }
+                className="animate-hazard-stripes absolute inset-x-0 top-0 h-1.5"
+                style={{
+                  backgroundImage: "repeating-linear-gradient(45deg, #f5b400 0 7px, #1a1a1a 7px 14px)",
+                  backgroundSize: "28px 100%",
+                }}
               />
-            ))}
-            <div className="animate-success-pop bg-primary text-primary-foreground flex items-center gap-2 rounded-full px-4 py-2 shadow-lg">
-              <PartyPopper className="size-4" />
-              <span className="text-sm font-semibold">Publié !</span>
+              <div
+                aria-hidden
+                className="animate-hazard-stripes absolute inset-x-0 bottom-0 h-1.5"
+                style={{
+                  backgroundImage: "repeating-linear-gradient(45deg, #f5b400 0 7px, #1a1a1a 7px 14px)",
+                  backgroundSize: "28px 100%",
+                }}
+              />
+
+              <p className="flex items-center gap-1.5 text-sm font-semibold text-amber-400">
+                <TriangleAlert className="size-4" />
+                {mode === "create" ? "Avant d'ajouter ce produit" : "Avant de modifier ce produit"}
+              </p>
+              <ul className="list-disc space-y-0.5 pl-4">
+                {mode === "create" ? (
+                  <>
+                    <li>Assure-toi que ce produit est réellement disponible dans ce magasin</li>
+                    <li>Vérifie le prix et la quantité avant de publier</li>
+                    <li>Pas de doublon avec une annonce déjà existante</li>
+                  </>
+                ) : (
+                  <>
+                    <li>Vérifie que tes modifications reflètent la disponibilité réelle</li>
+                    <li>Vérifie le prix et la quantité avant d&apos;enregistrer</li>
+                  </>
+                )}
+              </ul>
+              <p className="text-amber-400/90">
+                En cas de signalement par d&apos;autres utilisateurs, votre pourcentage de fiabilité
+                pourra être diminué, et des restrictions pourront être appliquées à votre compte en
+                cas de non-respect répété de ces règles.
+              </p>
+              <p className="text-muted-foreground mt-1 text-center text-[11px]">
+                Touchez cette fenêtre pour confirmer, ou en dehors pour annuler
+              </p>
             </div>
-            <p className="animate-success-pop text-muted-foreground bg-card rounded-full px-3 py-1 text-xs shadow-sm">
-              {mode === "create"
-                ? "Ton produit a été ajouté avec succès."
-                : "Tes modifications ont été enregistrées."}
-            </p>
           </div>
         )}
 

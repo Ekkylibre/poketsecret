@@ -5,6 +5,7 @@ import { type MouseEvent, useState, useTransition } from "react";
 
 import { togglePinDisponibilite, voterDisponibilite } from "@/app/(tabs)/magasins/actions";
 import { ConfidenceBadge } from "@/components/confidence-badge";
+import { FollowProductButton } from "@/components/follow-product-button";
 import { ModifierProduitDialog } from "@/components/produit-dialog";
 import { SignalerDialog } from "@/components/signaler-dialog";
 import { Badge } from "@/components/ui/badge";
@@ -21,6 +22,8 @@ export function AvailabilityCard({
   store,
   storeId,
   products,
+  isFollowed,
+  highlighted,
 }: {
   availability: Availability;
   product: Product;
@@ -28,6 +31,9 @@ export function AvailabilityCard({
   store?: Store;
   storeId: string;
   products: Product[];
+  isFollowed: boolean;
+  /** Venue d'une notification qui pointe vers cette dispo précise. */
+  highlighted?: boolean;
 }) {
   const confidence = decayedConfidence(availability.baseConfidence, availability.reportedAt);
   const [isPending, startTransition] = useTransition();
@@ -69,7 +75,13 @@ export function AvailabilityCard({
   const authorTime = relativeTime(editedById ? availability.lastModifiedAt! : availability.reportedAt);
 
   return (
-    <Card className="group/card hover:bg-white/5 animate-fade-in-up h-full gap-1.5 p-2 transition-colors">
+    <Card
+      id={`dispo-${availability.id}`}
+      className={cn(
+        "group/card hover:bg-white/5 animate-fade-in-up relative h-full gap-1.5 overflow-hidden p-2 transition-colors",
+        highlighted && "shimmer-wrapper"
+      )}
+    >
       <div className="bg-muted text-muted-foreground relative -mx-2 -mt-2 flex aspect-square shrink-0 items-center justify-center overflow-hidden rounded-t-xl">
         {availability.photoUrl ? (
           // eslint-disable-next-line @next/next/no-img-element -- data URL locale, pas d'optimisation next/image possible
@@ -87,6 +99,7 @@ export function AvailabilityCard({
         <div className="pointer-events-none absolute inset-0 bg-white/0 transition-colors group-hover/card:bg-white/5" />
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black/60 to-transparent" />
         <div className="absolute top-1.5 right-1.5 flex items-center gap-1">
+          <FollowProductButton productId={product.id} initialFollowed={isFollowed} />
           <button
             type="button"
             onClick={handlePin}

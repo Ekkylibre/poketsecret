@@ -1,31 +1,31 @@
 "use client";
 
-import { Star } from "lucide-react";
+import { Pin } from "lucide-react";
 import { type MouseEvent, useState, useTransition } from "react";
 
-import { toggleFavoriteStore } from "@/app/(tabs)/magasins/actions";
+import { togglePinStore } from "@/app/(tabs)/magasins/actions";
 import { cn } from "@/lib/utils";
 
-export function FavoriteStoreButton({
+export function PinStoreButton({
   storeId,
-  initialFavorite,
+  initialPinned,
   className,
 }: {
   storeId: string;
-  initialFavorite: boolean;
+  initialPinned: boolean;
   className?: string;
 }) {
-  const [favorite, setFavorite] = useState(initialFavorite);
+  const [pinned, setPinned] = useState(initialPinned);
   const [isPending, startTransition] = useTransition();
 
   function handleClick(e: MouseEvent) {
     e.preventDefault();
     e.stopPropagation();
-    const next = !favorite;
-    setFavorite(next);
+    const next = !pinned;
+    setPinned(next);
     startTransition(async () => {
-      const result = await toggleFavoriteStore(storeId);
-      if (result.error) setFavorite(!next);
+      const result = await togglePinStore(storeId);
+      if (result.error) setPinned(!next);
     });
   }
 
@@ -34,14 +34,15 @@ export function FavoriteStoreButton({
       type="button"
       onClick={handleClick}
       disabled={isPending}
-      aria-label={favorite ? "Retirer des favoris" : "Ajouter aux favoris"}
-      aria-pressed={favorite}
+      aria-label={pinned ? "Désépingler ce magasin" : "Épingler ce magasin"}
+      aria-pressed={pinned}
       className={cn(
         "text-muted-foreground hover:bg-accent flex size-8 shrink-0 items-center justify-center rounded-md disabled:opacity-50",
+        pinned && "text-primary",
         className
       )}
     >
-      <Star className={cn("size-4", favorite && "fill-primary text-primary")} />
+      <Pin className={cn("size-4", pinned && "fill-current")} />
     </button>
   );
 }

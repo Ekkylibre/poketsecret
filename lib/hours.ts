@@ -1,4 +1,4 @@
-import type { DayHours, Weekday } from "@/lib/types";
+import type { DayHours, StoreHours, Weekday } from "@/lib/types";
 
 export const dayLabels: Record<Weekday, string> = {
   lundi: "Lundi",
@@ -32,6 +32,28 @@ const weekdayByJsDay: Weekday[] = [
 
 export function getTodayWeekday(): Weekday {
   return weekdayByJsDay[new Date().getDay()];
+}
+
+/** Reconstruit les horaires d'un magasin à partir des champs `hours_<jour>_*` d'un
+ *  formulaire (nouveau-magasin-dialog) — utilisé côté serveur et pour l'aperçu client. */
+export function parseHoursFromFormData(formData: FormData): StoreHours {
+  const hours: StoreHours = {};
+  for (const day of weekdayOrder) {
+    const closed = formData.get(`hours_${day}_closed`) === "on";
+    const morningOpen = (formData.get(`hours_${day}_morningOpen`) as string) || undefined;
+    const morningClose = (formData.get(`hours_${day}_morningClose`) as string) || undefined;
+    const afternoonOpen = (formData.get(`hours_${day}_afternoonOpen`) as string) || undefined;
+    const afternoonClose = (formData.get(`hours_${day}_afternoonClose`) as string) || undefined;
+
+    if (closed) {
+      hours[day] = { closed: true };
+      continue;
+    }
+
+    const dayHours: DayHours = { morningOpen, morningClose, afternoonOpen, afternoonClose };
+    if (Object.values(dayHours).some(Boolean)) hours[day] = dayHours;
+  }
+  return hours;
 }
 
 export function formatDayHours(day: DayHours) {

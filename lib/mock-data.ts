@@ -9,6 +9,16 @@ import type {
 
 const hoursAgo = (h: number) => new Date(Date.now() - h * 60 * 60 * 1000).toISOString();
 
+/** Jour calendaire précis (heure fixe) pour tester de façon déterministe les catégories
+ *  de notifications (Aujourd'hui/Hier/7 derniers jours/Plus ancien), peu importe l'heure
+ *  à laquelle le code tourne. */
+const daysAgo = (d: number, h = 10) => {
+  const date = new Date();
+  date.setDate(date.getDate() - d);
+  date.setHours(h, 0, 0, 0);
+  return date.toISOString();
+};
+
 export const mockProducts: Product[] = [
   {
     id: "prod-1",
@@ -156,7 +166,7 @@ export const mockAvailabilities: Availability[] = [
     productId: "prod-2",
     storeId: "store-3",
     reportedById: "user-4",
-    reportedAt: hoursAgo(160),
+    reportedAt: daysAgo(5),
     price: 89,
     language: "Français",
     quantity: "1-5",
@@ -171,7 +181,7 @@ export const mockAvailabilities: Availability[] = [
     productId: "prod-4",
     storeId: "store-1",
     reportedById: "user-3",
-    reportedAt: hoursAgo(5),
+    reportedAt: daysAgo(1),
     price: 15,
     language: "Français",
     quantity: "5-10",
@@ -186,7 +196,7 @@ export const mockAvailabilities: Availability[] = [
     productId: "prod-5",
     storeId: "store-1",
     reportedById: "user-4",
-    reportedAt: hoursAgo(20),
+    reportedAt: daysAgo(15),
     price: 45,
     language: "Anglais",
     quantity: "1-5",
@@ -221,9 +231,12 @@ export const mockCurrentUser: UserProfile = {
   username: "Didoux",
   reputation: 82,
   isPremium: false,
-  followedProductIds: ["prod-1", "prod-2"],
-  favoriteStoreIds: [],
+  followedProductIds: ["prod-1", "prod-2", "prod-4", "prod-5"],
+  pinnedStoreIds: ["store-1"],
+  followedStoreIds: ["store-1"],
+  followedStoreSince: { "store-1": daysAgo(3) },
   dismissedNotificationIds: [],
+  readNotificationIds: [],
 };
 
 /** Pseudo affiché pour un id utilisateur — pas encore de vraie table users côté mock. */

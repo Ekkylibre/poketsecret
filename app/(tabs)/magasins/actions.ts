@@ -95,21 +95,106 @@ export async function signalerMagasin(
   return { success: true };
 }
 
-export async function toggleFavoriteStore(storeId: string) {
+/** Épingler = mise en avant/accès rapide uniquement, aucune notification associée. */
+export async function togglePinStore(storeId: string) {
   const store = mockStores.find((s) => s.id === storeId);
   if (!store) {
     return { error: "Magasin introuvable." };
   }
 
-  const index = mockCurrentUser.favoriteStoreIds.indexOf(storeId);
+  const index = mockCurrentUser.pinnedStoreIds.indexOf(storeId);
   if (index === -1) {
-    mockCurrentUser.favoriteStoreIds.push(storeId);
+    mockCurrentUser.pinnedStoreIds.push(storeId);
   } else {
-    mockCurrentUser.favoriteStoreIds.splice(index, 1);
+    mockCurrentUser.pinnedStoreIds.splice(index, 1);
   }
 
   revalidatePath("/magasins");
-  return { success: true, favorited: index === -1 };
+  revalidatePath("/profil");
+  return { success: true, pinned: index === -1 };
+}
+
+/** Suivi = déclenche les notifications de réassort pour ce magasin, indépendant du favori. */
+export async function toggleFollowStore(storeId: string) {
+  const store = mockStores.find((s) => s.id === storeId);
+  if (!store) {
+    return { error: "Magasin introuvable." };
+  }
+
+  const index = mockCurrentUser.followedStoreIds.indexOf(storeId);
+  if (index === -1) {
+    mockCurrentUser.followedStoreIds.push(storeId);
+    mockCurrentUser.followedStoreSince[storeId] = new Date().toISOString();
+  } else {
+    mockCurrentUser.followedStoreIds.splice(index, 1);
+    delete mockCurrentUser.followedStoreSince[storeId];
+  }
+
+  revalidatePath("/magasins");
+  revalidatePath("/notifications");
+  revalidatePath("/profil");
+  return { success: true, followed: index === -1 };
+}
+
+export async function toggleFollowProduct(productId: string) {
+  const product = mockProducts.find((p) => p.id === productId);
+  if (!product) {
+    return { error: "Produit introuvable." };
+  }
+
+  const index = mockCurrentUser.followedProductIds.indexOf(productId);
+  if (index === -1) {
+    mockCurrentUser.followedProductIds.push(productId);
+  } else {
+    mockCurrentUser.followedProductIds.splice(index, 1);
+  }
+
+  revalidatePath("/magasins");
+  revalidatePath("/notifications");
+  revalidatePath("/profil");
+  return { success: true, followed: index === -1 };
+}
+
+export interface SuivreProduitFormState {
+  error?: string;
+  success?: boolean;
+}
+
+/**
+ * Enregistre un ou plusieurs produits (un par type coché) dans le catalogue — créés s'ils
+ * n'existent pas déjà — et les suit, sans passer par un signalement de dispo, pour pouvoir
+ * suivre un produit avant qu'il n'ait été vu en magasin par qui que ce soit.
+ */
+export async function suivreNouveauProduit(
+  _prevState: SuivreProduitFormState | null,
+  formData: FormData
+): Promise<SuivreProduitFormState> {
+  const series = (formData.get("series") as string)?.trim();
+  const setName = (formData.get("setName") as string)?.trim();
+  const types = formData.getAll("type") as string[];
+
+  if (!series) {
+    return { error: "La série est obligatoire." };
+  }
+  if (!setName) {
+    return { error: "L'extension est obligatoire." };
+  }
+  if (types.length === 0) {
+    return { error: "Choisis au moins un type." };
+  }
+
+  for (const typeRaw of types) {
+    const type = (typeRaw || "autre") as ProductType;
+    const product = findOrCreateProduct(productTypeLabels[type], series, setName, type);
+    if (!mockCurrentUser.followedProductIds.includes(product.id)) {
+      mockCurrentUser.followedProductIds.push(product.id);
+    }
+  }
+
+  revalidatePath("/magasins");
+  revalidatePath("/notifications");
+  revalidatePath("/profil");
+  return { success: true };
 }
 
 export interface ProduitFormState {

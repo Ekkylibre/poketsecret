@@ -1,7 +1,8 @@
 "use client";
 
-import { ImageOff, MapPin, Package, ThumbsDown, ThumbsUp, Trash2, X } from "lucide-react";
-import { type PointerEvent, useRef, useState, useTransition } from "react";
+import { ImageOff, Store as StoreIcon, ThumbsDown, ThumbsUp, Trash2, X } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { type PointerEvent, useEffect, useRef, useState, useTransition } from "react";
 
 import { dismissNotification } from "@/app/(tabs)/notifications/actions";
 import { ConfidenceBadge } from "@/components/confidence-badge";
@@ -11,7 +12,7 @@ import { decayedConfidence, relativeTime } from "@/lib/confidence";
 import { getUsername } from "@/lib/mock-data";
 import { languageAbbreviations, natureStyles } from "@/lib/product-options";
 import type { Availability, Product, Store } from "@/lib/types";
-import { cn } from "@/lib/utils";
+import { cn, formatStoreAddress } from "@/lib/utils";
 
 // Distance de glissement (px) à partir de laquelle relâcher le doigt supprime la notification.
 const SWIPE_DISMISS_THRESHOLD = 88;
@@ -20,16 +21,32 @@ export function NotificationRow({
   availability,
   product,
   store,
+  isRead,
+  exitDelayMs,
 }: {
   availability: Availability;
   product: Product;
   store: Store;
+  isRead: boolean;
+  /** "Tout effacer" : fait jouer la sortie (fade + slide) après ce délai, pour un effet
+   *  en cascade plutôt que toutes les notifs qui disparaissent d'un coup. */
+  exitDelayMs?: number;
 }) {
+  const router = useRouter();
   const [removed, setRemoved] = useState(false);
   const [removing, setRemoving] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [dragX, setDragX] = useState(0);
   const [, startTransition] = useTransition();
+
+  useEffect(() => {
+    if (exitDelayMs === undefined) return;
+    const timeout = setTimeout(() => {
+      setDragging(false);
+      setRemoving(true);
+    }, exitDelayMs);
+    return () => clearTimeout(timeout);
+  }, [exitDelayMs]);
 
   const pointerIdRef = useRef<number | null>(null);
   const startRef = useRef({ x: 0, y: 0 });
@@ -82,12 +99,21 @@ export function NotificationRow({
     pointerIdRef.current = null;
     setDragging(false);
 
-    if (axisRef.current === "x" && dragX <= -SWIPE_DISMISS_THRESHOLD) {
+    // Aucun axe verrouillé = le doigt/curseur n'a quasiment pas bougé : c'est un tap, pas un
+    // swipe ni un scroll, donc on ouvre le magasin au bon produit.
+    const wasTap = axisRef.current === null;
+    axisRef.current = null;
+
+    if (wasTap) {
+      router.push(`/magasins?store=${store.id}&dispo=${availability.id}`);
+      return;
+    }
+
+    if (dragX <= -SWIPE_DISMISS_THRESHOLD) {
       commitDismiss();
     } else {
       setDragX(0);
     }
-    axisRef.current = null;
   }
 
   if (removed) return null;
@@ -114,21 +140,40 @@ export function NotificationRow({
         style={{
           transform: `translateX(${removing ? "-110%" : `${dragX}px`})`,
           opacity: removing ? 0 : 1,
-          transition: dragging ? "none" : "transform 0.25s ease-out, opacity 0.25s ease-out",
+          transition: dragging
+            ? "none"
+            : removing
+              ? "transform 0.2s ease-out, opacity 0.2s ease-out"
+              : "transform 0.25s ease-out, opacity 0.25s ease-out",
           touchAction: "pan-y",
         }}
-        className="relative z-10 flex-row items-center gap-3 p-3"
+        className={cn(
+          "relative z-10 flex-row items-stretch gap-3 p-0 transition-colors",
+          !isRead && "bg-primary/5"
+        )}
       >
-        <button
-          type="button"
-          onClick={commitDismiss}
-          aria-label="Fermer la notification"
-          className="text-muted-foreground hover:bg-accent absolute top-2 right-2 flex size-6 shrink-0 items-center justify-center rounded-md"
-        >
-          <X className="size-3.5" />
-        </button>
+        <div className="absolute top-2 right-2 z-10 flex items-center gap-1">
+          {availability.nature && (
+            <Badge className={cn("border-transparent", natureStyles[availability.nature])}>
+              {availability.nature}
+            </Badge>
+          )}
+          <button
+            type="button"
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={commitDismiss}
+            aria-label="Fermer la notification"
+            className="text-muted-foreground hover:bg-accent flex size-6 shrink-0 items-center justify-center rounded-md"
+          >
+            <X className="size-3.5" />
+          </button>
+        </div>
 
-        <div className="bg-muted text-muted-foreground relative flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-lg">
+        {/* Largeur fixe (contrairement à un aspect-square calé sur la hauteur de la card,
+            qui grandirait avec le texte et recouvrirait celui-ci) mais hauteur qui suit
+            la card via items-stretch (pas de self-start) : la largeur ne dépendant plus
+            de la hauteur, il n'y a plus de dépendance circulaire à craindre. */}
+        <div className="bg-muted text-muted-foreground relative flex w-24 shrink-0 items-center justify-center overflow-hidden rounded-l-xl">
           {availability.photoUrl ? (
             // eslint-disable-next-line @next/next/no-img-element -- data URL locale, pas d'optimisation next/image possible
             <img
@@ -140,41 +185,35 @@ export function NotificationRow({
               )}
             />
           ) : (
-            <ImageOff className="size-5" aria-label="Pas encore de photo" />
+            <ImageOff className="size-8" aria-label="Pas encore de photo" />
           )}
         </div>
 
-        <div className="min-w-0 flex-1 pr-6">
-          <p className="line-clamp-1 text-sm font-semibold">
+        <div className="min-w-0 flex-1 py-3 pr-6">
+          <p className="line-clamp-1 pr-20 text-sm font-semibold">
+            {!isRead && (
+              <span
+                aria-label="Non lu"
+                className="bg-primary mr-1.5 inline-block size-1.5 shrink-0 rounded-full align-middle"
+              />
+            )}
             {product.name} {product.setName}
             {availability.price != null && availability.quantity !== "Rupture" && (
               <span> · {availability.price} €</span>
             )}
           </p>
-          <p className="text-muted-foreground truncate text-xs">{product.series}</p>
-          <p className="text-muted-foreground flex items-center gap-1 truncate text-xs">
-            <MapPin className="size-3 shrink-0" />
-            {store.name}, {store.city}
-          </p>
-          <div className="mt-1 flex flex-wrap items-center gap-1">
-            {availability.nature && (
-              <Badge className={cn("border-transparent", natureStyles[availability.nature])}>
-                {availability.nature}
-              </Badge>
-            )}
+          <div className="flex items-center gap-1.5">
+            <p className="text-muted-foreground truncate text-xs">{product.series}</p>
             {availability.language && (
-              <Badge variant="outline">
+              <Badge variant="outline" className="shrink-0">
                 {languageAbbreviations[availability.language] ?? availability.language}
               </Badge>
             )}
-            {availability.quantity && (
-              <Badge variant="secondary" className="gap-1">
-                <Package className="size-3" />
-                {availability.quantity}
-              </Badge>
-            )}
-            <ConfidenceBadge confidence={confidence} className="h-4 px-1 py-0 text-[10px] leading-none" />
           </div>
+          <p className="text-muted-foreground flex items-center gap-1 truncate text-xs">
+            <StoreIcon className="size-3 shrink-0" />
+            {store.name}, {formatStoreAddress(store)}
+          </p>
           <div className="text-muted-foreground/70 mt-1 flex flex-wrap items-center gap-1.5 text-[11px]">
             <span className="truncate">
               {authorLabel} · {authorTime}
@@ -187,6 +226,7 @@ export function NotificationRow({
               <ThumbsDown className="size-3" />
               {availability.disputes}
             </span>
+            <ConfidenceBadge confidence={confidence} className="h-4 px-1 py-0 text-[10px] leading-none" />
           </div>
         </div>
       </Card>

@@ -200,7 +200,7 @@ export function CarteExplorer({ stores }: { stores: Store[] }) {
               anchor="bottom"
               offset={[0, 3]}
             >
-              <MapPin className="fill-secondary text-foreground size-7 drop-shadow" />
+              <MapPin className="fill-primary text-background size-7 drop-shadow [&_circle]:fill-transparent" />
             </Marker>
           )}
 
@@ -215,7 +215,7 @@ export function CarteExplorer({ stores }: { stores: Store[] }) {
                 setSelectedStore(s);
               }}
             >
-              <div className="bg-primary text-primary-foreground border-background flex size-7 items-center justify-center rounded-full border-2 shadow">
+              <div className="bg-primary text-primary-foreground border-background flex size-7 cursor-pointer items-center justify-center rounded-full border-2 shadow">
                 <StoreIcon className="size-3.5" />
               </div>
             </Marker>
@@ -254,16 +254,16 @@ export function CarteExplorer({ stores }: { stores: Store[] }) {
         </Map>
       </div>
 
-      <div className="flex flex-col gap-3 sm:flex-row">
+      <div className="flex min-h-80 gap-3">
         {detailStore && (
           <StoreInfoPanel
             store={detailStore}
             onClose={() => setDetailStoreId(null)}
-            className="h-60 overflow-y-auto sm:min-w-0 sm:flex-1 sm:basis-0"
+            className="min-w-0 flex-1 basis-0"
           />
         )}
 
-        <Card className="h-60 gap-3 overflow-y-auto p-4 sm:min-w-0 sm:flex-1 sm:basis-0">
+        <Card className="min-w-0 flex-1 basis-0 gap-3 p-4">
           <form onSubmit={handleStoreSearch} className="relative">
             <Search className="text-muted-foreground absolute top-1/2 left-3 size-4 -translate-y-1/2" />
             <Input
@@ -304,10 +304,13 @@ export function CarteExplorer({ stores }: { stores: Store[] }) {
               max={50}
               step={1}
             />
+            <span className="text-muted-foreground text-center text-xs">
+              Zoom {viewState.zoom.toFixed(1)} · Rayon maximum : 50 km
+            </span>
           </div>
 
-          <div className="flex gap-2">
-            <Button type="button" variant="outline" className="flex-1" onClick={handleLocateMe}>
+          <div className="mt-auto flex flex-col gap-2">
+            <Button type="button" variant="outline" onClick={handleLocateMe}>
               <Crosshair className="size-4" />
               Me localiser
             </Button>

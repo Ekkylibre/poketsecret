@@ -4,19 +4,10 @@ import { randomUUID } from "crypto";
 import { revalidatePath } from "next/cache";
 
 import { auth } from "@/lib/auth/server";
+import { parseHoursFromFormData } from "@/lib/hours";
 import { mockCurrentUser, mockStores } from "@/lib/mock-data";
-import type { DayHours, Store, StoreHours, Weekday } from "@/lib/types";
+import type { Store } from "@/lib/types";
 import { PHONE_PATTERN } from "@/lib/utils";
-
-const weekdays: Weekday[] = [
-  "lundi",
-  "mardi",
-  "mercredi",
-  "jeudi",
-  "vendredi",
-  "samedi",
-  "dimanche",
-];
 
 export interface CreerMagasinState {
   error?: string;
@@ -47,22 +38,7 @@ export async function creerMagasin(
     return { error: "Numéro de téléphone invalide." };
   }
 
-  const hours: StoreHours = {};
-  for (const day of weekdays) {
-    const closed = formData.get(`hours_${day}_closed`) === "on";
-    const morningOpen = (formData.get(`hours_${day}_morningOpen`) as string) || undefined;
-    const morningClose = (formData.get(`hours_${day}_morningClose`) as string) || undefined;
-    const afternoonOpen = (formData.get(`hours_${day}_afternoonOpen`) as string) || undefined;
-    const afternoonClose = (formData.get(`hours_${day}_afternoonClose`) as string) || undefined;
-
-    if (closed) {
-      hours[day] = { closed: true };
-      continue;
-    }
-
-    const dayHours: DayHours = { morningOpen, morningClose, afternoonOpen, afternoonClose };
-    if (Object.values(dayHours).some(Boolean)) hours[day] = dayHours;
-  }
+  const hours = parseHoursFromFormData(formData);
 
   const store: Store = {
     id: randomUUID(),
@@ -121,22 +97,7 @@ export async function modifierMagasin(
     return { error: "Numéro de téléphone invalide." };
   }
 
-  const hours: StoreHours = {};
-  for (const day of weekdays) {
-    const closed = formData.get(`hours_${day}_closed`) === "on";
-    const morningOpen = (formData.get(`hours_${day}_morningOpen`) as string) || undefined;
-    const morningClose = (formData.get(`hours_${day}_morningClose`) as string) || undefined;
-    const afternoonOpen = (formData.get(`hours_${day}_afternoonOpen`) as string) || undefined;
-    const afternoonClose = (formData.get(`hours_${day}_afternoonClose`) as string) || undefined;
-
-    if (closed) {
-      hours[day] = { closed: true };
-      continue;
-    }
-
-    const dayHours: DayHours = { morningOpen, morningClose, afternoonOpen, afternoonClose };
-    if (Object.values(dayHours).some(Boolean)) hours[day] = dayHours;
-  }
+  const hours = parseHoursFromFormData(formData);
 
   store.name = name;
   store.address = address;
