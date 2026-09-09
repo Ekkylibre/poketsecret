@@ -250,6 +250,15 @@ export default async function ProfilPage({
                   {isPremium ? "Gérer l'abonnement" : "Passer Premium"}
                 </Button>
               </form>
+              {!isPremium && (
+                <p className="text-muted-foreground text-center text-[10px]">
+                  En t&apos;abonnant, tu acceptes les{" "}
+                  <Link href="/legal/cgv" className="underline underline-offset-2">
+                    CGV
+                  </Link>
+                  .
+                </p>
+              )}
             </Card>
           </div>
           {process.env.NODE_ENV !== "production" && (
@@ -341,6 +350,18 @@ export default async function ProfilPage({
         </div>
 
         <HelpCard />
+
+        <p className="text-muted-foreground flex flex-wrap justify-center gap-x-3 gap-y-1 text-center text-xs">
+          <Link href="/legal/mentions-legales" className="underline underline-offset-2">
+            Mentions légales
+          </Link>
+          <Link href="/legal/cgu" className="underline underline-offset-2">
+            CGU
+          </Link>
+          <Link href="/legal/cgv" className="underline underline-offset-2">
+            CGV
+          </Link>
+        </p>
 
         {session?.user ? (
           <form action={signOut}>

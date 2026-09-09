@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import { requireSession } from "@/lib/auth/require-session";
+import { uploadDataUrlToBlob } from "@/lib/blob";
 import { sql } from "@/lib/db";
 import { notifyFollowersOfNewDisponibilite } from "@/lib/push";
 import { ensureProfil } from "@/lib/profil";
@@ -394,12 +395,19 @@ export async function enregistrerProduit(
     const setName = (formData.get("setName") as string)?.trim();
     const type = ((formData.get("type") as string) || "autre") as ProductType;
     const language = (formData.get("language") as string)?.trim();
-    const photoUrl = (formData.get("photoUrl") as string)?.trim();
+    const photoDataUrl = (formData.get("photoUrl") as string)?.trim();
 
     if (!series) return { error: "La série est obligatoire." };
     if (!setName) return { error: "L'extension est obligatoire." };
     if (!language) return { error: "La langue est obligatoire." };
-    if (!photoUrl) return { error: "Une photo est obligatoire." };
+    if (!photoDataUrl) return { error: "Une photo est obligatoire." };
+
+    let photoUrl: string;
+    try {
+      photoUrl = await uploadDataUrlToBlob(photoDataUrl, `dispos/${storeId}.jpg`);
+    } catch {
+      return { error: "Impossible d'enregistrer la photo, réessaie." };
+    }
 
     const reputation = await getReputation(user.id);
     const tier = tierOf(reputation);

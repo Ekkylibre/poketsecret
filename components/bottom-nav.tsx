@@ -42,7 +42,14 @@ export function BottomNav({ unreadCount = 0 }: { unreadCount?: number }) {
             }`}
           >
             <span className="relative flex size-10 items-center justify-center">
-              <Icon className="size-5" strokeWidth={isActive ? 2.5 : 2} />
+              {/* key={pathname} sur l'icône active : force un remount à chaque
+                  changement d'onglet, ce qui relance l'animation CSS (une classe qui
+                  reste "collée" au même noeud DOM ne la rejouerait pas). */}
+              <Icon
+                key={isActive ? pathname : undefined}
+                className={isActive ? "size-5 animate-tab-pop" : "size-5"}
+                strokeWidth={isActive ? 2.5 : 2}
+              />
               {href === "/notifications" && unreadCount > 0 && (
                 <span
                   aria-hidden

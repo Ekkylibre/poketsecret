@@ -149,6 +149,14 @@ export default function SignUpPage() {
               </Button>
             </form>
 
+            <p className="text-muted-foreground text-center text-xs">
+              En créant un compte, tu acceptes les{" "}
+              <Link href="/legal/cgu" className="underline underline-offset-2">
+                CGU
+              </Link>
+              .
+            </p>
+
             <div className="flex items-center gap-3">
               <div className="bg-border h-px flex-1" />
               <span className="text-muted-foreground text-xs">ou</span>

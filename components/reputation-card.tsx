@@ -101,7 +101,7 @@ export function ReputationCard({
             <tr className="text-muted-foreground border-b text-[10px]">
               <th className="py-1 text-left font-medium">Palier</th>
               <th className="py-1 text-center font-medium">Votes/j</th>
-              <th className="py-1 text-center font-medium">Signal./j</th>
+              <th className="py-1 text-center font-medium">Signal/j</th>
               <th className="py-1 text-center font-medium">Annonces/j</th>
               <th className="py-1 text-center font-medium">Magasins/sem</th>
             </tr>

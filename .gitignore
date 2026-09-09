@@ -42,3 +42,9 @@ yarn-error.log*
 next-env.d.ts
 .neon
 .mcp.json
+
+.env*
+
+# notes persos, pas pour le repo
+/ARCHITECTURE.html
+/LAUNCH-CHECKLIST.md
