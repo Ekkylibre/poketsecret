@@ -16,6 +16,29 @@ export async function signOut() {
   redirect("/profil");
 }
 
+/** Enregistre l'abonnement push renvoyé par pushManager.subscribe() côté client. Un
+ *  utilisateur peut avoir plusieurs abonnements (un par navigateur/appareil) : on ne
+ *  remplace pas, on ajoute (on conflict sur endpoint, unique par abonnement navigateur). */
+export async function savePushSubscription(subscription: {
+  endpoint: string;
+  keys: { p256dh: string; auth: string };
+}) {
+  const user = await requireSession();
+  await ensureProfil(user.id, user.name);
+
+  await sql`
+    insert into public.push_subscriptions (utilisateur_id, endpoint, p256dh, auth)
+    values (${user.id}, ${subscription.endpoint}, ${subscription.keys.p256dh}, ${subscription.keys.auth})
+    on conflict (endpoint) do update set utilisateur_id = excluded.utilisateur_id
+  `;
+}
+
+/** Appelée quand l'utilisateur désactive les notifications côté app (pas forcément une
+ *  vraie désinscription navigateur, mais on arrête d'envoyer vers cet endpoint). */
+export async function deletePushSubscription(endpoint: string) {
+  await sql`delete from public.push_subscriptions where endpoint = ${endpoint}`;
+}
+
 async function currentOrigin() {
   const headersList = await headers();
   const host = headersList.get("host");

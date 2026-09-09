@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 
 import { requireSession } from "@/lib/auth/require-session";
 import { sql } from "@/lib/db";
+import { notifyFollowersOfNewDisponibilite } from "@/lib/push";
 import { ensureProfil } from "@/lib/profil";
 import { productTypeLabels, quantityOptions } from "@/lib/product-options";
 import {
@@ -412,12 +413,19 @@ export async function enregistrerProduit(
     }
 
     const reputation = await getReputation(user.id);
-    await sql`
+    const inserted = await sql`
       insert into public.disponibilites
         (produit_id, magasin_id, signale_par, prix_centimes, langue, quantite, nature, photo_url, confiance_base)
       values
         (${productId}, ${storeId}, ${user.id}, ${priceCents ?? null}, ${language}, ${quantity}, ${nature}, ${photoUrl}, ${reputation})
+      returning id
     `;
+    const newDispoId = (inserted[0] as { id: string }).id;
+    // Best effort : une notification push manquée ne doit pas faire échouer la
+    // publication de l'annonce elle-même.
+    await notifyFollowersOfNewDisponibilite(newDispoId, productId, storeId, user.id, language).catch(
+      () => {}
+    );
   }
 
   revalidatePath("/magasins");

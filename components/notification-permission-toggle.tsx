@@ -3,6 +3,7 @@
 import { Bell, BellOff, Lock } from "lucide-react";
 import { useSyncExternalStore } from "react";
 
+import { deletePushSubscription, savePushSubscription } from "@/app/(tabs)/profil/actions";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 
@@ -51,6 +52,44 @@ function setPref(enabled: boolean) {
   notify();
 }
 
+// pushManager.subscribe() attend la clé VAPID publique en Uint8Array, pas en base64url
+// texte tel que généré/stocké : conversion standard, il n'y a pas d'API navigateur pour
+// ça directement.
+function urlBase64ToUint8Array(base64: string): Uint8Array<ArrayBuffer> {
+  const padding = "=".repeat((4 - (base64.length % 4)) % 4);
+  const base64Safe = (base64 + padding).replace(/-/g, "+").replace(/_/g, "/");
+  const raw = atob(base64Safe);
+  const bytes = new Uint8Array(raw.length);
+  for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
+  return bytes;
+}
+
+/** Enregistre le service worker (idempotent : no-op si déjà enregistré) et souscrit au
+ *  push navigateur, indépendant de tout onglet ouvert une fois fait. C'est cette étape,
+ *  distincte de la simple permission Notification, qui permet de recevoir une
+ *  notification app fermée. */
+async function subscribeToPush() {
+  const registration = await navigator.serviceWorker.register("/sw.js");
+  await navigator.serviceWorker.ready;
+  const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+  if (!publicKey) return;
+
+  const subscription = await registration.pushManager.subscribe({
+    userVisibleOnly: true,
+    applicationServerKey: urlBase64ToUint8Array(publicKey),
+  });
+  await savePushSubscription(subscription.toJSON() as { endpoint: string; keys: { p256dh: string; auth: string } });
+}
+
+async function unsubscribeFromPush() {
+  if (!("serviceWorker" in navigator)) return;
+  const registration = await navigator.serviceWorker.getRegistration("/sw.js");
+  const subscription = await registration?.pushManager.getSubscription();
+  if (!subscription) return;
+  await deletePushSubscription(subscription.endpoint);
+  await subscription.unsubscribe();
+}
+
 /** Partagé entre le toggle des réglages et la bulle d'incitation sur le profil. */
 export function useNotificationPermission() {
   const support = useSyncExternalStore(subscribe, getSupportSnapshot, getSupportServerSnapshot);
@@ -62,16 +101,18 @@ export function useNotificationPermission() {
       const result = await Notification.requestPermission();
       notify();
       if (result !== "granted") return;
-      new Notification("PokéSecret", {
-        body: "Notifications activées, tu seras alerté ici.",
-      });
     }
     if (support === "denied") return;
+    // Best effort : si l'abonnement échoue (réseau, clé VAPID absente...), l'utilisateur
+    // reste avec la permission navigateur accordée mais sans push actif : pas idéal, mais
+    // pas bloquant pour le reste de l'app, donc pas d'erreur remontée à l'UI ici.
+    await subscribeToPush().catch(() => {});
     setPref(true);
   }
 
   function disable() {
     setPref(false);
+    unsubscribeFromPush().catch(() => {});
   }
 
   return { support, enabled, enable, disable };
@@ -119,7 +160,7 @@ export function NotificationPermissionToggle({
       <div className="min-w-0">
         <p className="text-sm font-medium">Notifications du navigateur</p>
         {/* Le cas "pas encore demandé" a déjà la bulle d'incitation pour expliquer
-            pourquoi les activer, pas besoin de le redire ici — seul "bloquées" reste
+            pourquoi les activer, pas besoin de le redire ici : seul "bloquées" reste
             une info que la bulle ne donne pas. */}
         {support === "denied" && (
           <p className="text-muted-foreground text-xs">
