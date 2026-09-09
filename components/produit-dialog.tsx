@@ -46,7 +46,6 @@ import { ConfidenceBadge } from "@/components/confidence-badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { makeConfetti, type ConfettiPiece } from "@/lib/confetti";
-import { debugLog } from "@/lib/debug-log";
 import { mockCurrentUser } from "@/lib/mock-data";
 import {
   distinctSeries,
@@ -261,7 +260,6 @@ function ProduitDialog({
   }
 
   function handleOpenChange(next: boolean) {
-    debugLog(`handleOpenChange: next=${next}`);
     setOpen(next);
     if (next) {
       setHandledSuccess(false);
@@ -334,39 +332,28 @@ function ProduitDialog({
   function handlePhotoClick(e: MouseEvent) {
     e.preventDefault();
     e.stopPropagation();
-    debugLog(`handlePhotoClick: photoDataUrl=${!!photoDataUrl}`);
     // L'avertissement ne sert qu'avant la toute première photo : pour reprendre une
     // photo déjà prise, on rouvre directement le sélecteur.
     if (photoDataUrl) {
-      debugLog("handlePhotoClick: appel direct de fileInputRef.click()");
       fileInputRef.current?.click();
     } else {
-      debugLog("handlePhotoClick: affichage showPhotoGuidelines");
       setShowPhotoGuidelines(true);
     }
   }
 
   function handleConfirmPhotoGuidelines() {
-    debugLog("handleConfirmPhotoGuidelines: début");
-    debugLog(`handleConfirmPhotoGuidelines: fileInputRef.current=${!!fileInputRef.current}`);
-    // .click() en tout premier, avant tout setState : sur iOS Safari, ouvrir la caméra
-    // (capture=environment) est plus sensible qu'un simple sélecteur de fichiers et peut
-    // exiger d'être l'action la plus directe possible du geste utilisateur — un setState
-    // (même traité après coup par React) intercalé avant semble suffire à le faire échouer
-    // silencieusement la première fois (confirmé par les logs : le .click() s'exécutait
-    // bien, juste sans effet, quand setShowPhotoGuidelines passait avant).
+    // .click() avant le setState : sur mobile, ouvrir la caméra (capture=environment)
+    // est plus sensible qu'un simple sélecteur de fichiers et peut exiger d'être
+    // l'action la plus directe possible du geste utilisateur.
     fileInputRef.current?.click();
-    debugLog("handleConfirmPhotoGuidelines: .click() appelé");
     setShowPhotoGuidelines(false);
   }
 
   function handlePhotoChange(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
-    debugLog(`handlePhotoChange: fichier=${file ? file.name : "aucun"}`);
     if (!file) return;
     const reader = new FileReader();
     reader.onload = () => {
-      debugLog("handlePhotoChange: FileReader onload, setPhotoDataUrl");
       setPhotoDataUrl(reader.result as string);
       resetCrop();
     };
@@ -404,18 +391,13 @@ function ProduitDialog({
         // tout par défaut — annulant la photo en cours. Le dialogue ne doit se fermer
         // que via Annuler/la croix/la soumission, jamais par une perte de focus externe.
         onPointerDownOutside={(e) => {
-          debugLog("onPointerDownOutside");
           e.preventDefault();
           if (!showGuidelines && !showPhotoGuidelines) return;
           setShowGuidelines(false);
           setShowPhotoGuidelines(false);
         }}
-        onFocusOutside={(e) => {
-          debugLog("onFocusOutside");
-          e.preventDefault();
-        }}
+        onFocusOutside={(e) => e.preventDefault()}
         onInteractOutside={(e) => {
-          debugLog("onInteractOutside");
           e.preventDefault();
           if (!showGuidelines && !showPhotoGuidelines) return;
           setShowGuidelines(false);
@@ -1089,10 +1071,7 @@ function ProduitDialog({
         {showPhotoGuidelines && (
           <div
             className="absolute inset-0 z-20 flex items-center justify-center p-4"
-            onClick={() => {
-              debugLog("BACKDROP photo cliqué (pas le bouton) : fermeture sans confirmer");
-              setShowPhotoGuidelines(false);
-            }}
+            onClick={() => setShowPhotoGuidelines(false)}
           >
             <button
               type="button"

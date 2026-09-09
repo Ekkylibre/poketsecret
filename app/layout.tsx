@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import { DebugOverlay } from "@/components/debug-overlay";
 import { SplashScreen } from "@/components/splash-screen";
 
 const geistSans = Geist({
@@ -60,7 +59,6 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <body className="flex h-dvh flex-col overflow-hidden">
         <SplashScreen />
         {children}
-        <DebugOverlay />
       </body>
     </html>
   );
