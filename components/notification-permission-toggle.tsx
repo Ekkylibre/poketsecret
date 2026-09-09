@@ -135,7 +135,7 @@ export function NotificationPermissionToggle({
         <div className="text-muted-foreground/50 flex min-w-0 items-start gap-1.5">
           <Lock className="mt-0.5 size-3.5 shrink-0" />
           <div className="min-w-0">
-            <p className="text-sm font-medium">Notifications du navigateur</p>
+            <p className="text-sm font-medium">Notifications</p>
             <p className="text-xs">Fonctionnalité Premium.</p>
           </div>
         </div>
@@ -158,7 +158,7 @@ export function NotificationPermissionToggle({
   return (
     <div className={cn("flex items-center justify-between gap-3 px-4 py-3", className)}>
       <div className="min-w-0">
-        <p className="text-sm font-medium">Notifications du navigateur</p>
+        <p className="text-sm font-medium">Notifications</p>
         {/* Le cas "pas encore demandé" a déjà la bulle d'incitation pour expliquer
             pourquoi les activer, pas besoin de le redire ici : seul "bloquées" reste
             une info que la bulle ne donne pas. */}
