@@ -9,7 +9,6 @@ import { ConfidenceBadge } from "@/components/confidence-badge";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { decayedConfidence, relativeTime } from "@/lib/confidence";
-import { getUsername } from "@/lib/mock-data";
 import { languageAbbreviations, natureStyles } from "@/lib/product-options";
 import type { Availability, Product, Store } from "@/lib/types";
 import { cn, formatStoreAddress } from "@/lib/utils";
@@ -23,6 +22,7 @@ export function NotificationRow({
   store,
   isRead,
   exitDelayMs,
+  authorPseudos,
 }: {
   availability: Availability;
   product: Product;
@@ -31,12 +31,13 @@ export function NotificationRow({
   /** "Tout effacer" : fait jouer la sortie (fade + slide) après ce délai, pour un effet
    *  en cascade plutôt que toutes les notifs qui disparaissent d'un coup. */
   exitDelayMs?: number;
+  authorPseudos: Record<string, string>;
 }) {
   const router = useRouter();
   const [removed, setRemoved] = useState(false);
   const [removing, setRemoving] = useState(false);
   // Le slide+fade masque la carte, mais tant que la ligne occupe encore sa hauteur (gap du
-  // parent compris), les cartes suivantes ne remontent pas — d'où un saut de mise en page
+  // parent compris), les cartes suivantes ne remontent pas, d'où un saut de mise en page
   // brutal dès que la ligne se démonte. On effondre donc sa hauteur juste après, avant de
   // la retirer du DOM, pour que les voisines remontent en douceur plutôt que d'un coup.
   const [collapsing, setCollapsing] = useState(false);
@@ -63,8 +64,8 @@ export function NotificationRow({
 
   const editedById = availability.lastModifiedById;
   const authorLabel = editedById
-    ? `Modifié par ${getUsername(editedById)}`
-    : `Créé par ${getUsername(availability.reportedById)}`;
+    ? `Modifié par ${authorPseudos[editedById] ?? "Utilisateur"}`
+    : `Créé par ${authorPseudos[availability.reportedById] ?? "Utilisateur"}`;
   const authorTime = relativeTime(editedById ? availability.lastModifiedAt! : availability.reportedAt);
 
   function commitDismiss() {
@@ -160,15 +161,10 @@ export function NotificationRow({
             touchAction: "pan-y",
           }}
           className={cn(
-            "relative z-10 flex-row items-stretch gap-3 p-0 transition-colors",
-            !isRead && "bg-primary/5"
+            "relative z-10 flex-row items-stretch gap-3 border-transparent p-0 transition-colors",
+            !isRead && "bg-primary/10 border-primary/15"
           )}
         >
-          {/* Barre d'accent plutôt qu'un point sur le titre : signal net sur toute la
-              hauteur de la carte, sans surcharger le texte. */}
-          {!isRead && (
-            <div aria-hidden className="bg-primary absolute inset-y-0 left-0 z-20 w-1 rounded-l-xl" />
-          )}
           <div className="absolute top-2 right-2 z-10 flex items-center gap-1">
             {availability.nature && (
               <Badge className={cn("border-transparent", natureStyles[availability.nature])}>
@@ -208,6 +204,14 @@ export function NotificationRow({
 
           <div className="min-w-0 flex-1 py-3 pr-6">
             <p className="line-clamp-1 pr-20 text-sm font-semibold">
+              {/* Point avant le titre plutôt qu'une barre sur le bord de la card : celle-ci
+                  chevauchait la photo (rounded-l-xl commun aux deux). */}
+              {!isRead && (
+                <span
+                  aria-hidden
+                  className="bg-primary mr-1.5 inline-block size-1.5 shrink-0 rounded-full align-middle"
+                />
+              )}
               {product.name} {product.setName}
               {availability.price != null && availability.quantity !== "Rupture" && (
                 <span> · {availability.price} €</span>

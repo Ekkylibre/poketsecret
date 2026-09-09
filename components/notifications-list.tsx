@@ -27,12 +27,14 @@ const CLEAR_ALL_STAGGER_MS = 60;
 export function NotificationsList({
   groups,
   allIds,
+  authorPseudos,
 }: {
   groups: NotificationGroup[];
   allIds: string[];
+  authorPseudos: Record<string, string>;
 }) {
   // Snapshot pris au montage : une fois affichée, la liste ne se réduit plus toute seule
-  // quand le serveur revalide après un dismiss (quasi instantané sur données mock) — sinon
+  // quand le serveur revalide après un dismiss (quasi instantané sur données mock), sinon
   // ça coupe l'animation de sortie que NotificationRow gère elle-même en local.
   const [frozenGroups] = useState(groups);
   const [readIds, setReadIds] = useState(
@@ -52,7 +54,7 @@ export function NotificationsList({
     return order;
   }, [frozenGroups]);
 
-  // Ouvrir l'onglet vaut "vu" pour tout ce qui est affiché — volontairement découplé du clic
+  // Ouvrir l'onglet vaut "vu" pour tout ce qui est affiché, volontairement découplé du clic
   // sur une notification (qui, lui, ouvre le magasin) pour ne pas mélanger les deux gestes.
   // Léger délai pour laisser l'utilisateur percevoir ce qui était non lu avant que ça bascule.
   useEffect(() => {
@@ -76,11 +78,11 @@ export function NotificationsList({
     setClearingAll(true);
     // La liste reste "frozen" (voir plus haut) donc rien ne bouge chez elle quand le
     // serveur revalide, mais `page.tsx` (parent) démonterait toute la liste dès que
-    // dismissedNotificationIds devient complet — ce qui coupe la cascade en plein vol
+    // dismissedNotificationIds devient complet, ce qui coupe la cascade en plein vol
     // vu la latence quasi nulle des données mock. On attend donc la fin de l'animation
     // (dernier délai + durée de la transition de sortie) avant d'appeler le serveur.
     // Chaque carte joue le slide (0.2s) puis l'effondrement de hauteur (0.2s) avant de
-    // se démonter — la dernière carte lancée doit avoir fini les deux avant d'appeler
+    // se démonter. La dernière carte lancée doit avoir fini les deux avant d'appeler
     // le serveur, sinon la page bascule sur l'état vide en plein milieu de la cascade.
     const totalDurationMs = exitOrder.size * CLEAR_ALL_STAGGER_MS + 450;
     setTimeout(() => {
@@ -106,6 +108,7 @@ export function NotificationsList({
                 product={item.product}
                 store={item.store}
                 isRead={readIds.has(item.availability.id)}
+                authorPseudos={authorPseudos}
                 exitDelayMs={
                   clearingAll ? exitOrder.get(item.availability.id)! * CLEAR_ALL_STAGGER_MS : undefined
                 }

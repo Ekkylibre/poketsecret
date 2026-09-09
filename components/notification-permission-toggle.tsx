@@ -4,6 +4,7 @@ import { Bell, BellOff, Lock } from "lucide-react";
 import { useSyncExternalStore } from "react";
 
 import { Switch } from "@/components/ui/switch";
+import { cn } from "@/lib/utils";
 
 // Préférence propre à l'app, distincte de la permission navigateur : une fois "granted",
 // impossible de la retirer en JS (seuls les réglages du navigateur le peuvent), donc c'est
@@ -62,7 +63,7 @@ export function useNotificationPermission() {
       notify();
       if (result !== "granted") return;
       new Notification("PokéSecret", {
-        body: "Notifications activées — tu seras alerté ici.",
+        body: "Notifications activées, tu seras alerté ici.",
       });
     }
     if (support === "denied") return;
@@ -76,12 +77,20 @@ export function useNotificationPermission() {
   return { support, enabled, enable, disable };
 }
 
-export function NotificationPermissionToggle({ premiumLocked }: { premiumLocked: boolean }) {
+export function NotificationPermissionToggle({
+  premiumLocked,
+  className,
+}: {
+  premiumLocked: boolean;
+  /** Remplace le padding par défaut (px-4 py-3), utile quand le composant n'est plus
+   *  posé en pleine largeur de card mais dans une colonne déjà indentée. */
+  className?: string;
+}) {
   const { support, enabled, enable, disable } = useNotificationPermission();
 
   if (premiumLocked) {
     return (
-      <div className="flex items-center justify-between gap-3 px-4 py-3">
+      <div className={cn("flex items-center justify-between gap-3 px-4 py-3", className)}>
         <div className="text-muted-foreground/50 flex min-w-0 items-start gap-1.5">
           <Lock className="mt-0.5 size-3.5 shrink-0" />
           <div className="min-w-0">
@@ -99,21 +108,24 @@ export function NotificationPermissionToggle({ premiumLocked }: { premiumLocked:
 
   if (support === "unsupported") {
     return (
-      <p className="text-muted-foreground px-4 py-3 text-xs">
+      <p className={cn("text-muted-foreground px-4 py-3 text-xs", className)}>
         Notifications non prises en charge par ce navigateur.
       </p>
     );
   }
 
   return (
-    <div className="flex items-center justify-between gap-3 px-4 py-3">
+    <div className={cn("flex items-center justify-between gap-3 px-4 py-3", className)}>
       <div className="min-w-0">
         <p className="text-sm font-medium">Notifications du navigateur</p>
-        <p className="text-muted-foreground text-xs">
-          {support === "denied"
-            ? "Bloquées — à réactiver dans les réglages du navigateur."
-            : "Sois alerté quand un produit ou magasin suivi a du nouveau."}
-        </p>
+        {/* Le cas "pas encore demandé" a déjà la bulle d'incitation pour expliquer
+            pourquoi les activer, pas besoin de le redire ici — seul "bloquées" reste
+            une info que la bulle ne donne pas. */}
+        {support === "denied" && (
+          <p className="text-muted-foreground text-xs">
+            Bloquées, à réactiver dans les réglages du navigateur.
+          </p>
+        )}
       </div>
       <div className="flex shrink-0 items-center gap-2">
         {enabled ? (

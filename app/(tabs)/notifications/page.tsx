@@ -1,49 +1,45 @@
 import { Bell } from "lucide-react";
+import { redirect } from "next/navigation";
 
 import { type NotificationGroup, NotificationsList } from "@/components/notifications-list";
 import { SuivreProduitDialog } from "@/components/suivre-produit-dialog";
+import { auth } from "@/lib/auth/server";
 import { dateBucket, type DateBucket } from "@/lib/confidence";
-import { mockCurrentUser, mockProducts, mockStores } from "@/lib/mock-data";
 import { getFollowedAvailabilities, notificationDate } from "@/lib/notifications";
-import type { Availability } from "@/lib/types";
+import { fetchAuthorPseudos, fetchProducts } from "@/lib/queries";
+import { fetchSeriesExtensions } from "@/lib/tcgdex";
 
 const BUCKET_ORDER: DateBucket[] = ["Aujourd'hui", "Hier", "7 derniers jours", "Plus ancien"];
 
-// Lit mockCurrentUser (mutable, modifié par les server actions dismiss/markRead) à chaque
-// requête : sans ça, Next met la page en cache statique et sert un rendu figé au lieu de
-// refléter les changements (cf. le même besoin sur profil/page.tsx).
+// Lit la base à chaque requête (dismiss/markRead écrivent dedans) : sans rendu
+// dynamique, Next mettrait la page en cache statique et servirait un rendu figé.
 export const dynamic = "force-dynamic";
 
-export default function NotificationsPage() {
-  const followedAvailabilities = getFollowedAvailabilities();
+export default async function NotificationsPage() {
+  const { data: session } = await auth.getSession();
+  if (!session?.user) redirect("/auth/sign-in");
 
-  const byBucket = new Map<DateBucket, Availability[]>();
-  for (const availability of followedAvailabilities) {
-    const bucket = dateBucket(notificationDate(availability));
+  const [followedAvailabilities, produits, referenceExtensions, authorPseudos] = await Promise.all([
+    getFollowedAvailabilities(session.user.id),
+    fetchProducts(),
+    fetchSeriesExtensions(),
+    fetchAuthorPseudos(),
+  ]);
+
+  const byBucket = new Map<DateBucket, typeof followedAvailabilities>();
+  for (const item of followedAvailabilities) {
+    const bucket = dateBucket(notificationDate(item.availability));
     if (!byBucket.has(bucket)) byBucket.set(bucket, []);
-    byBucket.get(bucket)!.push(availability);
-  }
-  for (const list of byBucket.values()) {
-    list.sort(
-      (a, b) => new Date(notificationDate(b)).getTime() - new Date(notificationDate(a)).getTime()
-    );
+    byBucket.get(bucket)!.push(item);
   }
 
   const groups: NotificationGroup[] = BUCKET_ORDER.filter((bucket) => byBucket.has(bucket)).map(
-    (bucket) => ({
-      bucket,
-      items: byBucket.get(bucket)!.map((availability) => ({
-        availability,
-        product: mockProducts.find((p) => p.id === availability.productId)!,
-        store: mockStores.find((s) => s.id === availability.storeId)!,
-        isRead: mockCurrentUser.readNotificationIds.includes(availability.id),
-      })),
-    })
+    (bucket) => ({ bucket, items: byBucket.get(bucket)! })
   );
 
   return (
     <div className="flex flex-1 flex-col">
-      <SuivreProduitDialog products={mockProducts} />
+      <SuivreProduitDialog products={produits} referenceExtensions={referenceExtensions} />
 
       {followedAvailabilities.length === 0 ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 text-center">
@@ -55,7 +51,11 @@ export default function NotificationsPage() {
           </p>
         </div>
       ) : (
-        <NotificationsList groups={groups} allIds={followedAvailabilities.map((a) => a.id)} />
+        <NotificationsList
+          groups={groups}
+          allIds={followedAvailabilities.map((a) => a.availability.id)}
+          authorPseudos={authorPseudos}
+        />
       )}
     </div>
   );
