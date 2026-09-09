@@ -41,10 +41,14 @@ export function Logo({
         </mask>
         {shimmer && (
           <>
-            {/* Union des zones réellement peintes (bille pleine + bande de l'anneau, avec
-                ses 4 vides) : le highlight ne traverse que ce que ces formes couvrent. */}
+            {/* Union des zones réellement peintes, en reprenant exactement les mêmes
+                rayons/épaisseurs de trait que les formes réelles (pas une approximation) :
+                le highlight ne traverse que ce que ces formes couvrent, au pixel près.
+                strokeWidth=1.6 sur la bille : son propre contour déborde de 0.8 au-delà
+                de r=30 (le trait est centré sur le tracé), sans quoi ce fin liseré ne
+                recevrait jamais le highlight alors qu'il est bien visible à l'écran. */}
             <mask id={shimmerMaskId}>
-              <circle cx="50" cy="50" r="30" fill="#fff" />
+              <circle cx="50" cy="50" r="30" fill="#fff" stroke="#fff" strokeWidth="1.6" />
               <g mask={`url(#${maskId})`}>
                 <circle cx="50" cy="50" r="38" fill="none" stroke="#fff" strokeWidth="8" />
               </g>
@@ -53,24 +57,27 @@ export function Logo({
                 sur l'élément masqué : un transform CSS animé sur une forme portant (ou
                 héritant d'un ancêtre) un mask SVG déforme le mask en cours d'animation
                 dans Chromium (déjà rencontré sur la rotation de l'anneau). Ici seul le
-                dégradé bouge, la géométrie du rect masqué reste fixe. */}
+                dégradé bouge, la géométrie du rect masqué reste fixe. Largeur et opacité
+                calquées sur .shimmer-wrapper (globals.css) : même diffusion large et
+                douce que le highlight des cards produit, pas un filet fin. */}
             <linearGradient
               id={shimmerGradId}
               gradientUnits="userSpaceOnUse"
               x1="0"
               y1="0"
-              x2="26"
-              y2="26"
+              x2="50"
+              y2="50"
             >
               <stop offset="0" stopColor="#fff" stopOpacity="0" />
-              <stop offset="0.5" stopColor="#fff" stopOpacity="0.6" />
+              <stop offset="0.5" stopColor="#fff" stopOpacity="0.3" />
               <stop offset="1" stopColor="#fff" stopOpacity="0" />
               <animateTransform
                 attributeName="gradientTransform"
                 type="translate"
-                values="-40 -40; 140 140"
-                dur="2s"
-                repeatCount="indefinite"
+                values="-60 -60; 150 150"
+                dur="1.3s"
+                repeatCount="1"
+                fill="freeze"
               />
             </linearGradient>
           </>

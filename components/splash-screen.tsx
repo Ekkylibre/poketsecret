@@ -5,8 +5,10 @@ import { useEffect, useState, useSyncExternalStore } from "react";
 import { Logo } from "@/components/logo";
 
 const SPLASH_KEY = "poketsecret-splash-shown";
-const HOLD_MS = 1500;
-const FADE_OUT_MS = 400;
+// HOLD_MS un peu au-dessus de la durée du balayage du logo (1.3s, voir logo.tsx) pour le
+// laisser se terminer avant de partir.
+const HOLD_MS = 1350;
+const FADE_OUT_MS = 300;
 
 // Variable de module (pas un state React) : une fois qu'on a décidé de lancer la lecture
 // pour ce chargement de page, on ignore toute relecture ultérieure de sessionStorage.

@@ -73,7 +73,7 @@
   --animate-bell-shake: bell-shake 4.5s ease-in-out infinite;
   --animate-gentle-blink: gentle-blink 2s ease-in-out infinite;
   --animate-splash-in: splash-in 0.6s ease-out both;
-  --animate-splash-out: splash-out 0.4s ease-in both;
+  --animate-splash-out: splash-out 0.3s ease-in both;
 }
 
 @keyframes fade-in-up {
