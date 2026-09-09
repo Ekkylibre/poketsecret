@@ -35,14 +35,21 @@ export default function SignInPage() {
             <label htmlFor="email" className="text-sm font-medium">
               Email
             </label>
-            <Input id="email" name="email" type="email" required placeholder="toi@exemple.fr" />
+            <Input
+              id="email"
+              name="email"
+              type="email"
+              autoComplete="email"
+              required
+              placeholder="poketsecret@exemple.fr"
+            />
           </div>
 
           <div className="flex flex-col gap-1.5">
             <label htmlFor="password" className="text-sm font-medium">
               Mot de passe
             </label>
-            <PasswordInput id="password" name="password" required />
+            <PasswordInput id="password" name="password" autoComplete="current-password" required />
           </div>
 
           <div className="flex items-center justify-between">

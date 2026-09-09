@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useActionState } from "react";
 
 import { resetPassword } from "./actions";
+import { Logo } from "@/components/logo";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { PasswordInput } from "@/components/ui/password-input";
@@ -13,6 +14,13 @@ export function ResetPasswordForm({ token }: { token?: string }) {
 
   return (
     <div className="flex flex-1 flex-col items-center justify-center p-4">
+      <div className="mb-6 flex flex-col items-center gap-2">
+        <Logo className="size-14" />
+        <p className="text-base font-semibold tracking-tight">
+          Poket<span className="text-[#f2a93c]">Secret</span>
+        </p>
+      </div>
+
       <Card className="w-full max-w-sm gap-5 p-5">
         <div>
           <h1 className="text-lg font-semibold">Nouveau mot de passe</h1>
@@ -34,7 +42,13 @@ export function ResetPasswordForm({ token }: { token?: string }) {
               <label htmlFor="password" className="text-sm font-medium">
                 Nouveau mot de passe
               </label>
-              <PasswordInput id="password" name="password" required minLength={8} />
+              <PasswordInput
+                id="password"
+                name="password"
+                autoComplete="new-password"
+                required
+                minLength={8}
+              />
             </div>
 
             {state?.error && <p className="text-destructive text-sm">{state.error}</p>}
