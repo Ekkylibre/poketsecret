@@ -28,7 +28,7 @@ import { useLocation } from "@/components/location-provider";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { formatDayHours, getTodayWeekday } from "@/lib/hours";
-import { productTypeLabels } from "@/lib/product-options";
+import { productTypeLabels, type SeriesExtensionPair } from "@/lib/product-options";
 import type { Availability, DayHours, Product, Store } from "@/lib/types";
 import { cn, formatStoreAddress } from "@/lib/utils";
 
@@ -117,23 +117,27 @@ function StoreCard({
   hoursToday,
   storeAvailabilities,
   products,
+  referenceExtensions,
   isPinned,
   isFollowed,
   followedProductIds,
   isExpanded,
   onToggle,
   highlightedDispoId,
+  authorPseudos,
 }: {
   store: Store;
   hoursToday?: DayHours;
   storeAvailabilities: Availability[];
   products: Product[];
+  referenceExtensions: SeriesExtensionPair[];
   isPinned: boolean;
   isFollowed: boolean;
   followedProductIds: string[];
   isExpanded: boolean;
   onToggle: () => void;
   highlightedDispoId?: string;
+  authorPseudos: Record<string, string>;
 }) {
   const [sortField, setSortField] = useState<SortField>(null);
   const [sortDir, setSortDir] = useState<SortDir>("desc");
@@ -195,7 +199,11 @@ function StoreCard({
           <PinStoreButton storeId={store.id} initialPinned={isPinned} className="self-start" />
           <FollowStoreButton storeId={store.id} initialFollowed={isFollowed} className="self-start" />
           <div className="flex flex-col items-center gap-1">
-            <AjouterProduitDialog storeId={store.id} products={products} />
+            <AjouterProduitDialog
+              storeId={store.id}
+              products={products}
+              referenceExtensions={referenceExtensions}
+            />
             <button
               type="button"
               onClick={onToggle}
@@ -243,6 +251,7 @@ function StoreCard({
                       products={products}
                       isFollowed={followedProductIds.includes(product.id)}
                       highlighted={availability.id === highlightedDispoId}
+                      authorPseudos={authorPseudos}
                     />
                   );
                 })}
@@ -259,15 +268,19 @@ export function MagasinsList({
   stores,
   availabilities,
   products,
+  referenceExtensions = [],
   pinnedStoreIds,
   followedStoreIds,
   followedProductIds,
   targetStoreId,
   targetDispoId,
+  authorPseudos,
 }: {
   stores: Store[];
   availabilities: Availability[];
   products: Product[];
+  /** Référentiel série/extension (TCGdex), en plus des produits déjà signalés. */
+  referenceExtensions?: SeriesExtensionPair[];
   pinnedStoreIds: string[];
   followedStoreIds: string[];
   followedProductIds: string[];
@@ -275,6 +288,7 @@ export function MagasinsList({
   targetStoreId?: string;
   /** Disponibilité à surligner dans la grille une fois le magasin déplié. */
   targetDispoId?: string;
+  authorPseudos: Record<string, string>;
 }) {
   const { center, radiusKm } = useLocation();
   const [query, setQuery] = useState("");
@@ -510,12 +524,14 @@ export function MagasinsList({
                 hoursToday={store.hours?.[today]}
                 storeAvailabilities={filteredAvailabilities.filter((a) => a.storeId === store.id)}
                 products={products}
+                referenceExtensions={referenceExtensions}
                 isPinned={pinnedStoreIds.includes(store.id)}
                 isFollowed={followedStoreIds.includes(store.id)}
                 followedProductIds={followedProductIds}
                 isExpanded={expandedIds.has(store.id)}
                 onToggle={() => toggleExpanded(store.id)}
                 highlightedDispoId={store.id === targetStoreId ? highlightedDispoId : undefined}
+                authorPseudos={authorPseudos}
               />
             ))}
           </>

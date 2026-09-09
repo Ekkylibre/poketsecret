@@ -1,15 +1,27 @@
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 
 import { FollowProductButton } from "@/components/follow-product-button";
 import { Card } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { mockCurrentUser, mockProducts } from "@/lib/mock-data";
+import { auth } from "@/lib/auth/server";
+import { sql } from "@/lib/db";
 
-export default function ProduitsSuivisPage() {
-  const followedProducts = mockProducts.filter((p) =>
-    mockCurrentUser.followedProductIds.includes(p.id)
-  );
+export const dynamic = "force-dynamic";
+
+export default async function ProduitsSuivisPage() {
+  const { data: session } = await auth.getSession();
+  if (!session?.user) redirect("/auth/sign-in");
+
+  const rows = await sql`
+    select p.id, p.nom, p.serie, p.extension
+    from public.produits p
+    join public.produits_suivis ps on ps.produit_id = p.id
+    where ps.utilisateur_id = ${session.user.id}
+    order by p.nom
+  `;
+  const followedProducts = rows as { id: string; nom: string; serie: string | null; extension: string }[];
 
   return (
     <div className="flex flex-1 flex-col">
@@ -34,9 +46,9 @@ export default function ProduitsSuivisPage() {
                 {i > 0 && <Separator />}
                 <div className="flex items-center justify-between gap-2 py-2.5">
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-medium">{product.name}</p>
+                    <p className="truncate text-sm font-medium">{product.nom}</p>
                     <p className="text-muted-foreground truncate text-xs">
-                      {product.series} · {product.setName}
+                      {product.serie} · {product.extension}
                     </p>
                   </div>
                   <FollowProductButton

@@ -1,13 +1,38 @@
 import { ArrowLeft, MapPin } from "lucide-react";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 
 import { FollowStoreButton } from "@/components/follow-store-button";
 import { Card } from "@/components/ui/card";
-import { mockCurrentUser, mockStores } from "@/lib/mock-data";
+import { auth } from "@/lib/auth/server";
+import { sql } from "@/lib/db";
+import type { Store } from "@/lib/types";
 import { formatStoreAddress } from "@/lib/utils";
 
-export default function MagasinsSuivisPage() {
-  const followedStores = mockStores.filter((s) => mockCurrentUser.followedStoreIds.includes(s.id));
+export const dynamic = "force-dynamic";
+
+export default async function MagasinsSuivisPage() {
+  const { data: session } = await auth.getSession();
+  if (!session?.user) redirect("/auth/sign-in");
+
+  const rows = await sql`
+    select m.id, m.nom, m.adresse, m.code_postal, m.ville
+    from public.magasins m
+    join public.magasins_suivis ms on ms.magasin_id = m.id
+    where ms.utilisateur_id = ${session.user.id} and m.masque = false
+    order by m.nom
+  `;
+  const followedStores = (
+    rows as { id: string; nom: string; adresse: string; code_postal: string | null; ville: string }[]
+  ).map(
+    (m): Pick<Store, "id" | "name" | "address" | "postalCode" | "city"> => ({
+      id: m.id,
+      name: m.nom,
+      address: m.adresse,
+      postalCode: m.code_postal ?? undefined,
+      city: m.ville,
+    })
+  );
 
   return (
     <div className="flex flex-1 flex-col">

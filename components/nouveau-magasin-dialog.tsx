@@ -25,6 +25,7 @@ import { AsYouType } from "libphonenumber-js";
 
 import { creerMagasin, modifierMagasin } from "@/app/(tabs)/magasins/nouveau/actions";
 import { ConfidenceBadge } from "@/components/confidence-badge";
+import { Logo } from "@/components/logo";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -187,7 +188,7 @@ function MagasinDialog({ mode, store }: { mode: "create" | "edit"; store?: Store
   // grande d'entre elles (horaires, avec ses 7 cartes) même quand une étape plus courte
   // est affichée. On mesure donc l'étape active pour caler la hauteur du viewport dessus.
   // Callback ref plutôt que useRef+useEffect : DialogContent (donc ce div) n'existe dans
-  // le DOM qu'une fois le portail Radix monté, un ou deux rendus après l'ouverture — un
+  // le DOM qu'une fois le portail Radix monté, un ou deux rendus après l'ouverture. Un
   // effet classique n'a alors plus jamais l'occasion de re-mesurer. Le callback ref, lui,
   // est rappelé par React à chaque fois qu'il (ré)attache le noeud, donc toujours à jour.
   const [trackHeight, setTrackHeight] = useState<number | undefined>(undefined);
@@ -240,7 +241,7 @@ function MagasinDialog({ mode, store }: { mode: "create" | "edit"; store?: Store
 
   // On ne garde que les chiffres tapés/collés (lettres, espaces, tirets... ignorés à la
   // source) puis libphonenumber-js reformate lui-même en "04 78 00 00 00" au fil de la
-  // frappe — plus fiable qu'une regex maison pour gérer espaces multiples, collages, etc.
+  // frappe, plus fiable qu'une regex maison pour gérer espaces multiples, collages, etc.
   function handlePhoneChange(e: ChangeEvent<HTMLInputElement>) {
     const digits = e.target.value.replace(/\D/g, "").slice(0, 10);
     setPhone(new AsYouType("FR").input(digits));
@@ -284,7 +285,7 @@ function MagasinDialog({ mode, store }: { mode: "create" | "edit"; store?: Store
     setShowGuidelines(false);
   }
 
-  // API Adresse (Base Adresse Nationale) — service officiel de l'État (IGN/Etalab),
+  // API Adresse (Base Adresse Nationale), service officiel de l'État (IGN/Etalab),
   // gratuit et sans clé, plus fiable que Mapbox pour les adresses françaises.
   useEffect(() => {
     const query = addressQuery.trim();
@@ -374,7 +375,9 @@ function MagasinDialog({ mode, store }: { mode: "create" | "edit"; store?: Store
           )}
         >
         <DialogHeader>
-          <DialogTitle>{mode === "create" ? "Ajouter un magasin" : "Modifier le magasin"}</DialogTitle>
+          <DialogTitle>
+            {mode === "create" ? "Ajouter un magasin" : `Modifier ${store?.name ?? "le magasin"}`}
+          </DialogTitle>
         </DialogHeader>
 
         <form
@@ -385,6 +388,11 @@ function MagasinDialog({ mode, store }: { mode: "create" | "edit"; store?: Store
         >
           <input type="hidden" name="lat" value={coords?.lat ?? ""} />
           <input type="hidden" name="lng" value={coords?.lng ?? ""} />
+          {/* En édition, le nom n'est plus un champ modifiable (voir plus bas) : le titre du
+              dialogue suffit à le donner comme contexte, pas besoin de le réafficher dans
+              un champ qu'on ne peut pas toucher. On garde quand même sa valeur en hidden
+              pour que le serveur (qui l'exige) la reçoive. */}
+          {mode === "edit" && <input type="hidden" name="name" value={name} />}
 
           <div className="flex gap-1.5">
             <div
@@ -407,18 +415,25 @@ function MagasinDialog({ mode, store }: { mode: "create" | "edit"; store?: Store
               style={{ transform: `translateX(-${(step - 1) * 100}%)` }}
             >
           <div ref={(el) => measureStep(el, 1)} className="flex w-full shrink-0 flex-col gap-4">
-            <div className="flex flex-col gap-1.5">
-              <label htmlFor="name" className="text-sm font-medium">
-                Nom
-              </label>
-              <Input
-                id="name"
-                name="name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Carrefour City"
-              />
-            </div>
+            {/* Pas affiché du tout en édition (voir le hidden input name="name" plus haut) :
+                changer le nom reviendrait à transformer la fiche en un tout autre magasin
+                plutôt qu'à corriger une erreur, direction "signaler" (Doublon) si l'entrée
+                est fausse. Un champ visible mais verrouillé n'apportait rien de plus que le
+                titre du dialogue, qui donne déjà le nom en contexte. */}
+            {mode === "create" && (
+              <div className="flex flex-col gap-1.5">
+                <label htmlFor="name" className="text-sm font-medium">
+                  Nom
+                </label>
+                <Input
+                  id="name"
+                  name="name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="Carrefour City"
+                />
+              </div>
+            )}
 
             <div className="relative flex flex-col gap-1.5">
               <label htmlFor="address" className="text-sm font-medium">
@@ -772,6 +787,12 @@ function MagasinDialog({ mode, store }: { mode: "create" | "edit"; store?: Store
                 }}
               />
 
+              <div className="mb-1 flex flex-col items-center gap-1">
+                <Logo className="size-9" />
+                <p className="text-sm font-bold">
+                  Poket<span className="text-[#f2a93c]">Secret</span>
+                </p>
+              </div>
               <p className="flex items-center gap-1.5 text-sm font-semibold text-amber-400">
                 <TriangleAlert className="size-4" />
                 {mode === "create" ? "Avant d'ajouter ce magasin" : "Avant de modifier ce magasin"}
@@ -779,24 +800,33 @@ function MagasinDialog({ mode, store }: { mode: "create" | "edit"; store?: Store
               <ul className="list-disc space-y-0.5 pl-4">
                 {mode === "create" ? (
                   <>
-                    <li>Assure-toi que ce magasin existe réellement</li>
-                    <li>Vérifie que l&apos;adresse est exacte</li>
-                    <li>Pas de doublon avec un magasin déjà référencé</li>
+                    <li>Magasin réellement existant</li>
+                    <li>Adresse exacte</li>
+                    <li>Déjà référencé ? Ne le recrée pas, cherche-le d&apos;abord dans la liste</li>
+                    <li>Orthographe et majuscules soignées, pour le bien de tous</li>
                   </>
                 ) : (
                   <>
-                    <li>Vérifie que tes modifications sont exactes</li>
-                    <li>Vérifie que les informations restent correctes pour ce magasin précis</li>
+                    <li>Modifications exactes</li>
+                    <li>Infos toujours correctes pour ce magasin</li>
+                    <li>Orthographe et majuscules soignées, pour le bien de tous</li>
                   </>
                 )}
               </ul>
+              {mode === "create" && (
+                <p className="text-muted-foreground">
+                  Une erreur ? Tu pourras toujours revenir la corriger.
+                </p>
+              )}
               <p className="text-amber-400/90">
-                En cas de signalement par d&apos;autres utilisateurs, votre pourcentage de fiabilité
-                pourra être diminué, et des restrictions pourront être appliquées à votre compte en
-                cas de non-respect répété de ces règles.
+                Les signalements répétés font baisser ta fiabilité et peuvent restreindre ton compte.
               </p>
-              <p className="text-muted-foreground mt-1 text-center text-[11px]">
-                Touchez cette fenêtre pour confirmer, ou en dehors pour annuler
+              <p className="text-muted-foreground">
+                À l&apos;inverse, des contributions de qualité font monter ta réputation et
+                débloquent plus de droits (votes, signalements, magasins par semaine).
+              </p>
+              <p className="text-muted-foreground animate-gentle-blink mt-1 text-center text-[11px]">
+                Touche pour confirmer, en dehors pour annuler
               </p>
             </div>
           </div>

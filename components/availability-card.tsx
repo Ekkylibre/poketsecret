@@ -1,6 +1,6 @@
 "use client";
 
-import { ImageOff, MapPin, Package, Pin, ThumbsDown, ThumbsUp } from "lucide-react";
+import { ImageOff, MapPin, Package, Pin, ThumbsDown, ThumbsUp, TriangleAlert } from "lucide-react";
 import { type MouseEvent, useState, useTransition } from "react";
 
 import { togglePinDisponibilite, voterDisponibilite } from "@/app/(tabs)/magasins/actions";
@@ -11,7 +11,6 @@ import { SignalerDialog } from "@/components/signaler-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { decayedConfidence, relativeTime } from "@/lib/confidence";
-import { getUsername } from "@/lib/mock-data";
 import { languageAbbreviations, natureStyles } from "@/lib/product-options";
 import type { Availability, Product, Store } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -24,6 +23,7 @@ export function AvailabilityCard({
   products,
   isFollowed,
   highlighted,
+  authorPseudos,
 }: {
   availability: Availability;
   product: Product;
@@ -34,6 +34,7 @@ export function AvailabilityCard({
   isFollowed: boolean;
   /** Venue d'une notification qui pointe vers cette dispo précise. */
   highlighted?: boolean;
+  authorPseudos: Record<string, string>;
 }) {
   const confidence = decayedConfidence(availability.baseConfidence, availability.reportedAt);
   const [isPending, startTransition] = useTransition();
@@ -70,8 +71,8 @@ export function AvailabilityCard({
 
   const editedById = availability.lastModifiedById;
   const authorLabel = editedById
-    ? `Modifié par ${getUsername(editedById)}`
-    : `Créé par ${getUsername(availability.reportedById)}`;
+    ? `Modifié par ${authorPseudos[editedById] ?? "Utilisateur"}`
+    : `Créé par ${authorPseudos[availability.reportedById] ?? "Utilisateur"}`;
   const authorTime = relativeTime(editedById ? availability.lastModifiedAt! : availability.reportedAt);
 
   return (
@@ -79,9 +80,16 @@ export function AvailabilityCard({
       id={`dispo-${availability.id}`}
       className={cn(
         "group/card hover:bg-white/5 animate-fade-in-up relative h-full gap-1.5 overflow-hidden p-2 transition-colors",
-        highlighted && "shimmer-wrapper"
+        highlighted && "shimmer-wrapper",
+        availability.masked && "border-destructive/40 opacity-60"
       )}
     >
+      {availability.masked && (
+        <div className="bg-destructive/15 text-destructive flex items-center gap-1 rounded-md px-1.5 py-1 text-[10px] font-medium">
+          <TriangleAlert className="size-3 shrink-0" />
+          Masquée par la communauté, vote encore possible
+        </div>
+      )}
       <div className="bg-muted text-muted-foreground relative -mx-2 -mt-2 flex aspect-square shrink-0 items-center justify-center overflow-hidden rounded-t-xl">
         {availability.photoUrl ? (
           // eslint-disable-next-line @next/next/no-img-element -- data URL locale, pas d'optimisation next/image possible

@@ -1,10 +1,19 @@
-export type ProductType = "booster" | "coffret" | "display" | "autre";
+export type ProductType =
+  | "booster"
+  | "blister"
+  | "display"
+  | "coffret_dresseur_elite"
+  | "coffret_premium"
+  | "coffret"
+  | "pokebox"
+  | "deck"
+  | "autre";
 
 export interface Product {
   id: string;
   name: string;
   type: ProductType;
-  /** Série TCG, ex. "Écarlate et Violet" — regroupe plusieurs extensions. */
+  /** Série TCG, ex. "Écarlate et Violet", regroupe plusieurs extensions. */
   series: string;
   /** Extension précise au sein de la série, ex. "151" ou "Évolutions Prismatiques". */
   setName: string;
@@ -48,6 +57,8 @@ export interface Store {
   likes: number;
   reports: number;
   flags: number;
+  /** true si la modération pondérée l'a masqué (voir Availability.masked, même principe). */
+  masked?: boolean;
 }
 
 export interface StoreReport {
@@ -84,6 +95,10 @@ export interface Availability {
   confirmations: number;
   disputes: number;
   flags: number;
+  /** true si la modération pondérée l'a masquée (contestée/signalée au-delà du seuil) :
+   *  reste affichée mais marquée, pour que le vote continue et puisse renverser la
+   *  décision (voir resolveDisponibiliteVote dans lib/reputation.ts). */
+  masked?: boolean;
 }
 
 export interface AvailabilityReport {
@@ -102,11 +117,11 @@ export interface UserProfile {
   reputation: number;
   isPremium: boolean;
   followedProductIds: string[];
-  /** Magasins épinglés en haut de liste (tri/accès rapide) — n'implique aucune notification. */
+  /** Magasins épinglés en haut de liste (tri/accès rapide), n'implique aucune notification. */
   pinnedStoreIds: string[];
-  /** Magasins dont on veut être notifié du réassort — indépendant de l'épinglage. */
+  /** Magasins dont on veut être notifié du réassort, indépendant de l'épinglage. */
   followedStoreIds: string[];
-  /** Date (ISO) à laquelle chaque magasin a été suivi — sert de coupure pour ne notifier
+  /** Date (ISO) à laquelle chaque magasin a été suivi, sert de coupure pour ne notifier
    *  que les dispos créées/mises à jour après coup, pas tout le stock existant. */
   followedStoreSince: Record<string, string>;
   /** Disponibilités masquées du flux de notifications (fermées manuellement). */

@@ -1,6 +1,9 @@
 import { CarteExplorer } from "@/components/carte-explorer";
-import { mockStores } from "@/lib/mock-data";
+import { fetchAuthorPseudos, fetchStores } from "@/lib/queries";
 
-export default function CartePage() {
-  return <CarteExplorer stores={mockStores} />;
+export const dynamic = "force-dynamic";
+
+export default async function CartePage() {
+  const [stores, authorPseudos] = await Promise.all([fetchStores(), fetchAuthorPseudos()]);
+  return <CarteExplorer stores={stores} authorPseudos={authorPseudos} />;
 }

@@ -44,7 +44,13 @@ function circleCoordinates(centerLat: number, centerLng: number, radiusKm: numbe
   return coords;
 }
 
-export function CarteExplorer({ stores }: { stores: Store[] }) {
+export function CarteExplorer({
+  stores,
+  authorPseudos,
+}: {
+  stores: Store[];
+  authorPseudos: Record<string, string>;
+}) {
   const { center, setCenter, radiusKm, setRadiusKm } = useLocation();
   const [viewState, setViewState] = useState({
     latitude: center.lat,
@@ -260,6 +266,7 @@ export function CarteExplorer({ stores }: { stores: Store[] }) {
             store={detailStore}
             onClose={() => setDetailStoreId(null)}
             className="min-w-0 flex-1 basis-0"
+            authorPseudos={authorPseudos}
           />
         )}
 

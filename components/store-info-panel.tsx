@@ -1,6 +1,6 @@
 "use client";
 
-import { MapPin, Phone, X } from "lucide-react";
+import { MapPin, Phone, TriangleAlert, X } from "lucide-react";
 import { useState } from "react";
 
 import { likeStore, reportStore } from "@/app/(tabs)/magasins/actions";
@@ -10,7 +10,6 @@ import { StoreVoteButtons } from "@/components/store-vote-buttons";
 import { Card } from "@/components/ui/card";
 import { relativeTime } from "@/lib/confidence";
 import { dayLabels, formatDayHours, weekdayOrder } from "@/lib/hours";
-import { getUsername } from "@/lib/mock-data";
 import type { Store } from "@/lib/types";
 import { cn, formatStoreAddress } from "@/lib/utils";
 
@@ -18,10 +17,12 @@ export function StoreInfoPanel({
   store,
   onClose,
   className,
+  authorPseudos,
 }: {
   store: Store;
   onClose: () => void;
   className?: string;
+  authorPseudos: Record<string, string>;
 }) {
   const [closing, setClosing] = useState(false);
 
@@ -43,6 +44,13 @@ export function StoreInfoPanel({
           <X className="size-3.5" />
         </button>
       </div>
+
+      {store.masked && (
+        <div className="bg-destructive/15 text-destructive flex items-center gap-1 rounded-md px-1.5 py-1 text-[10px] font-medium">
+          <TriangleAlert className="size-3 shrink-0" />
+          Masqué par la communauté, vote encore possible
+        </div>
+      )}
 
       <p className="text-muted-foreground flex items-start gap-1.5 text-xs">
         <MapPin className="mt-0.5 size-3 shrink-0" />
@@ -70,7 +78,7 @@ export function StoreInfoPanel({
 
       <p className="text-muted-foreground/70 text-xs">
         {store.lastModifiedById ? "Modifié par" : "Créé par"}{" "}
-        {getUsername(store.lastModifiedById ?? store.createdById)} ·{" "}
+        {authorPseudos[store.lastModifiedById ?? store.createdById] ?? "Utilisateur"} ·{" "}
         {relativeTime(store.lastModifiedById ? store.lastModifiedAt! : store.createdAt)}
       </p>
 

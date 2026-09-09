@@ -16,13 +16,9 @@ import {
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 
-const REPORT_REASONS = [
-  "Magasin fermé définitivement",
-  "Adresse ou horaires incorrects",
-  "Doublon",
-  "Contenu inapproprié ou spam",
-  "Autre",
-];
+// Adresse/horaires retirés : se corrigent directement via "Modifier le magasin", plus
+// besoin de les signaler (même logique que pour les produits, voir signaler-dialog.tsx).
+const REPORT_REASONS = ["Magasin fermé définitivement", "Doublon", "Contenu inapproprié ou spam"];
 
 export function SignalerMagasinDialog({ storeId }: { storeId: string }) {
   const [open, setOpen] = useState(false);

@@ -20,12 +20,7 @@ import { cn } from "@/lib/utils";
 // "Modifier le produit" : ce ne sont plus des raisons de signalement. Restent les
 // éléments qu'on ne peut pas s'auto-corriger (identité du produit, photo, doublon)
 // ou qui nécessitent une modération.
-const REPORT_REASONS = [
-  "Produit ou photo incorrect(e)",
-  "Doublon",
-  "Contenu inapproprié ou spam",
-  "Autre",
-];
+const REPORT_REASONS = ["Produit ou photo incorrect(e)", "Doublon", "Contenu inapproprié ou spam"];
 
 export function SignalerDialog({ availabilityId }: { availabilityId: string }) {
   const [open, setOpen] = useState(false);
