@@ -74,7 +74,6 @@
   --animate-gentle-blink: gentle-blink 2s ease-in-out infinite;
   --animate-splash-in: splash-in 0.6s ease-out both;
   --animate-splash-out: splash-out 0.4s ease-in both;
-  --animate-splash-wave: splash-wave 3.2s ease-out infinite;
 }
 
 @keyframes fade-in-up {
@@ -126,19 +125,17 @@
   }
 }
 
-/* Attire l'oeil sur l'avertissement photo : léger overshoot façon "pop" plutôt qu'un
-   simple fade, pour marquer une vraie rupture avec le reste de l'UI. */
+/* Attire l'oeil sur l'avertissement (photo ou général) : un simple fade, sans déplacer
+   ni redimensionner la boîte. Un transform pendant l'animation change la position réelle
+   (hit-testing) du bouton "Touche pour confirmer" le temps de l'entrée : un tap rapide
+   juste après l'apparition du popup peut alors rater le bouton et tomber sur le fond
+   (qui ferme sans rien déclencher) — d'où un premier tap qui semblait ne rien faire. */
 @keyframes alert-in {
   0% {
     opacity: 0;
-    transform: translateY(-8px) scale(0.96);
-  }
-  70% {
-    opacity: 1;
-    transform: translateY(0) scale(1.015);
   }
   100% {
-    transform: translateY(0) scale(1);
+    opacity: 1;
   }
 }
 
@@ -291,30 +288,8 @@
   }
 }
 
-/* Onde sonar : grandit depuis le rayon de l'anneau en s'estompant, en boucle. Un simple
-   scale sur des <path> (non masqués), donc pas de risque de déformation par le mask,
-   contrairement à un transform animé sur l'anneau lui-même. Un seul battement (0 à 31%
-   du cycle) puis un long silence (31% à 100%) avant que le cycle ne reparte : ça donne
-   l'effet "double coup, pause" plutôt qu'un flux continu (voir Logo pour le décalage
-   entre les deux ondes, et le flou qui grandit en synchro sur les mêmes 31%). */
-@keyframes splash-wave {
-  0% {
-    transform: scale(1);
-    opacity: 0.6;
-  }
-  31% {
-    transform: scale(1.7);
-    opacity: 0;
-  }
-  100% {
-    transform: scale(1.7);
-    opacity: 0;
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
   .animate-splash-in,
-  .animate-splash-wave,
   .animate-splash-out {
     animation: none;
   }
