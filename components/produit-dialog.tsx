@@ -46,6 +46,7 @@ import { ConfidenceBadge } from "@/components/confidence-badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { makeConfetti, type ConfettiPiece } from "@/lib/confetti";
+import { debugLog } from "@/lib/debug-log";
 import { mockCurrentUser } from "@/lib/mock-data";
 import {
   distinctSeries,
@@ -223,6 +224,19 @@ function ProduitDialog({
   // comme LE blister standard) avec le produit générique attendu. Une image fausse est
   // pire qu'aucune image : seule une vraie photo prise par l'utilisateur s'affiche ici.
   const typeOptions = Object.entries(productTypeLabels) as [ProductType, string][];
+  // Types déjà signalés par la communauté pour cette série/extension précise (nos propres
+  // données, pas un catalogue tiers) : sert juste à avertir, jamais à bloquer — toutes les
+  // extensions n'ont pas les mêmes produits (pas de Duopack partout, par ex.), mais on ne
+  // peut pas savoir à coup sûr qu'un type absent ici n'existe vraiment pas.
+  const knownTypesForExtension = useMemo(() => {
+    const types = new Set<ProductType>();
+    for (const p of products) {
+      if (p.series === series && p.setName === extension) types.add(p.type);
+    }
+    return types;
+  }, [products, series, extension]);
+  const isUnconfirmedType =
+    !!type && !!extension && knownTypesForExtension.size > 0 && !knownTypesForExtension.has(type);
   const [language, setLanguage] = useState(availability?.language ?? "");
   const [nature, setNature] = useState<AvailabilityNature | "">(availability?.nature ?? "");
   const [price, setPrice] = useState(availability?.price != null ? String(availability.price) : "");
@@ -247,6 +261,7 @@ function ProduitDialog({
   }
 
   function handleOpenChange(next: boolean) {
+    debugLog(`handleOpenChange: next=${next}`);
     setOpen(next);
     if (next) {
       setHandledSuccess(false);
@@ -319,25 +334,39 @@ function ProduitDialog({
   function handlePhotoClick(e: MouseEvent) {
     e.preventDefault();
     e.stopPropagation();
+    debugLog(`handlePhotoClick: photoDataUrl=${!!photoDataUrl}`);
     // L'avertissement ne sert qu'avant la toute première photo : pour reprendre une
     // photo déjà prise, on rouvre directement le sélecteur.
     if (photoDataUrl) {
+      debugLog("handlePhotoClick: appel direct de fileInputRef.click()");
       fileInputRef.current?.click();
     } else {
+      debugLog("handlePhotoClick: affichage showPhotoGuidelines");
       setShowPhotoGuidelines(true);
     }
   }
 
   function handleConfirmPhotoGuidelines() {
-    setShowPhotoGuidelines(false);
+    debugLog("handleConfirmPhotoGuidelines: début");
+    debugLog(`handleConfirmPhotoGuidelines: fileInputRef.current=${!!fileInputRef.current}`);
+    // .click() en tout premier, avant tout setState : sur iOS Safari, ouvrir la caméra
+    // (capture=environment) est plus sensible qu'un simple sélecteur de fichiers et peut
+    // exiger d'être l'action la plus directe possible du geste utilisateur — un setState
+    // (même traité après coup par React) intercalé avant semble suffire à le faire échouer
+    // silencieusement la première fois (confirmé par les logs : le .click() s'exécutait
+    // bien, juste sans effet, quand setShowPhotoGuidelines passait avant).
     fileInputRef.current?.click();
+    debugLog("handleConfirmPhotoGuidelines: .click() appelé");
+    setShowPhotoGuidelines(false);
   }
 
   function handlePhotoChange(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
+    debugLog(`handlePhotoChange: fichier=${file ? file.name : "aucun"}`);
     if (!file) return;
     const reader = new FileReader();
     reader.onload = () => {
+      debugLog("handlePhotoChange: FileReader onload, setPhotoDataUrl");
       setPhotoDataUrl(reader.result as string);
       resetCrop();
     };
@@ -369,15 +398,26 @@ function ProduitDialog({
           setShowGuidelines(false);
           setShowPhotoGuidelines(false);
         }}
+        // Toujours preventDefault ici, même sans warning affiché : ouvrir l'appareil
+        // photo natif (input file) fait perdre le focus à la page le temps de la prise
+        // de vue, ce que Radix traite comme une interaction "hors du dialogue" et ferme
+        // tout par défaut — annulant la photo en cours. Le dialogue ne doit se fermer
+        // que via Annuler/la croix/la soumission, jamais par une perte de focus externe.
         onPointerDownOutside={(e) => {
-          if (!showGuidelines && !showPhotoGuidelines) return;
+          debugLog("onPointerDownOutside");
           e.preventDefault();
+          if (!showGuidelines && !showPhotoGuidelines) return;
           setShowGuidelines(false);
           setShowPhotoGuidelines(false);
         }}
-        onInteractOutside={(e) => {
-          if (!showGuidelines && !showPhotoGuidelines) return;
+        onFocusOutside={(e) => {
+          debugLog("onFocusOutside");
           e.preventDefault();
+        }}
+        onInteractOutside={(e) => {
+          debugLog("onInteractOutside");
+          e.preventDefault();
+          if (!showGuidelines && !showPhotoGuidelines) return;
           setShowGuidelines(false);
           setShowPhotoGuidelines(false);
         }}
@@ -556,6 +596,11 @@ function ProduitDialog({
                       ))}
                     </SelectContent>
                   </Select>
+                  {isUnconfirmedType && (
+                    <p className="text-amber-500 text-xs">
+                      Jamais signalé pour cette extension, vérifie avant de valider.
+                    </p>
+                  )}
                 </div>
 
                 <div className="flex min-w-0 flex-1 flex-col gap-1.5">
@@ -725,17 +770,27 @@ function ProduitDialog({
                     </div>
                   )}
                   {!isCropping && photoDataUrl && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setCropContainerSize(cropContainerRef.current?.clientWidth ?? null);
-                        setIsCropping(true);
-                      }}
-                      aria-label="Recadrer la photo"
-                      className="bg-background/80 text-foreground hover:bg-background absolute bottom-1.5 left-1.5 flex size-7 items-center justify-center rounded-full backdrop-blur-sm"
-                    >
-                      <Crop className="size-3.5" />
-                    </button>
+                    <div className="absolute top-1/2 right-1.5 flex -translate-y-1/2 flex-col gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCropContainerSize(cropContainerRef.current?.clientWidth ?? null);
+                          setIsCropping(true);
+                        }}
+                        aria-label="Recadrer la photo"
+                        className="bg-background/80 text-foreground hover:bg-background flex size-7 items-center justify-center rounded-full backdrop-blur-sm"
+                      >
+                        <Crop className="size-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handlePhotoClick}
+                        aria-label="Reprendre une photo"
+                        className="bg-background/80 text-foreground hover:bg-background flex size-7 items-center justify-center rounded-full backdrop-blur-sm"
+                      >
+                        <Camera className="size-3.5" />
+                      </button>
+                    </div>
                   )}
                 </div>
                 {isCropping && (
@@ -956,20 +1011,18 @@ function ProduitDialog({
             className="absolute inset-0 z-20 flex items-center justify-center p-4"
             onClick={() => setShowGuidelines(false)}
           >
-            <div
-              role="button"
-              tabIndex={0}
+            <button
+              type="button"
               onClick={(e) => {
                 e.stopPropagation();
                 setShowGuidelines(false);
               }}
-              onKeyDown={(e) => {
-                if (e.key !== "Enter" && e.key !== " ") return;
-                e.preventDefault();
-                e.stopPropagation();
-                setShowGuidelines(false);
-              }}
-              className="animate-alert-in border-amber-500/50 bg-card text-muted-foreground relative flex w-full cursor-pointer flex-col gap-2 overflow-hidden rounded-md border p-4 pt-5 pb-5 text-xs shadow-2xl"
+              // Un vrai <button> plutôt qu'un <div role="button"> : sur iOS Safari, un
+              // élément non nativement interactif peut exiger un premier tap "à vide"
+              // (simulation du survol) avant qu'un second tap ne déclenche réellement le
+              // clic — d'où le besoin de confirmer deux fois avant que la prise de photo
+              // ne s'enchaîne juste après.
+              className="animate-alert-in border-amber-500/50 bg-card text-muted-foreground relative flex w-full cursor-pointer flex-col gap-2 overflow-hidden rounded-md border p-4 pt-5 pb-5 text-left text-xs shadow-2xl"
             >
               <div
                 aria-hidden
@@ -1029,29 +1082,25 @@ function ProduitDialog({
               <p className="text-muted-foreground animate-gentle-blink mt-1 text-center text-[11px]">
                 Touche pour confirmer, en dehors pour annuler
               </p>
-            </div>
+            </button>
           </div>
         )}
 
         {showPhotoGuidelines && (
           <div
             className="absolute inset-0 z-20 flex items-center justify-center p-4"
-            onClick={() => setShowPhotoGuidelines(false)}
+            onClick={() => {
+              debugLog("BACKDROP photo cliqué (pas le bouton) : fermeture sans confirmer");
+              setShowPhotoGuidelines(false);
+            }}
           >
-            <div
-              role="button"
-              tabIndex={0}
+            <button
+              type="button"
               onClick={(e) => {
                 e.stopPropagation();
                 handleConfirmPhotoGuidelines();
               }}
-              onKeyDown={(e) => {
-                if (e.key !== "Enter" && e.key !== " ") return;
-                e.preventDefault();
-                e.stopPropagation();
-                handleConfirmPhotoGuidelines();
-              }}
-              className="animate-alert-in border-amber-500/50 bg-card text-muted-foreground relative flex w-full cursor-pointer flex-col gap-2 overflow-hidden rounded-md border p-4 pt-5 pb-5 text-xs shadow-2xl"
+              className="animate-alert-in border-amber-500/50 bg-card text-muted-foreground relative flex w-full cursor-pointer flex-col gap-2 overflow-hidden rounded-md border p-4 pt-5 pb-5 text-left text-xs shadow-2xl"
             >
               <div
                 aria-hidden
@@ -1096,7 +1145,7 @@ function ProduitDialog({
               <p className="text-muted-foreground animate-gentle-blink mt-1 text-center text-[11px]">
                 Touche pour confirmer, en dehors pour annuler
               </p>
-            </div>
+            </button>
           </div>
         )}
       </DialogContent>
