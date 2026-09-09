@@ -1,20 +1,6 @@
 "use client";
 
-import {
-  Archive,
-  Box,
-  Boxes,
-  Check,
-  Crown,
-  Gift,
-  ImageOff,
-  Layers,
-  type LucideIcon,
-  MoreHorizontal,
-  Package,
-  PackageOpen,
-  Plus,
-} from "lucide-react";
+import { Check, ImageOff, Plus } from "lucide-react";
 import { useActionState, useMemo, useState } from "react";
 
 import { suivreNouveauProduit } from "@/app/(tabs)/magasins/actions";
@@ -39,31 +25,11 @@ import {
 import type { Product, ProductType } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
+// Suivre un produit suit désormais tous les types d'une extension d'un coup (un
+// collectionneur veut tout ce qui sort de "151", pas cocher booster/display un par un) :
+// plus de sélection manuelle de type, juste la liste utilisée pour créer une entrée de
+// suivi par type existant.
 const ALL_TYPES = Object.keys(productTypeLabels) as ProductType[];
-
-const typeIcons: Record<ProductType, LucideIcon> = {
-  booster: Package,
-  blister: PackageOpen,
-  coffret: Gift,
-  display: Boxes,
-  coffret_dresseur_elite: Box,
-  coffret_premium: Crown,
-  pokebox: Archive,
-  deck: Layers,
-  autre: MoreHorizontal,
-};
-
-const typeTileColors: Record<ProductType, string> = {
-  booster: "from-sky-600 to-sky-900",
-  blister: "from-cyan-600 to-cyan-900",
-  coffret: "from-amber-600 to-amber-900",
-  display: "from-violet-600 to-violet-900",
-  coffret_dresseur_elite: "from-rose-600 to-rose-900",
-  coffret_premium: "from-yellow-600 to-yellow-900",
-  pokebox: "from-emerald-600 to-emerald-900",
-  deck: "from-indigo-600 to-indigo-900",
-  autre: "from-slate-600 to-slate-800",
-};
 
 // Sépare série et extension dans les clés des Map de logos, sans risque de collision
 // avec un nom qui contiendrait un espace.
@@ -130,40 +96,6 @@ function CoverTile({
   );
 }
 
-function TypeTile({
-  type,
-  selected,
-  onClick,
-}: {
-  type: ProductType;
-  selected: boolean;
-  onClick: () => void;
-}) {
-  const Icon = typeIcons[type];
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      // ring-inset : un ring classique déborde de 2px hors de la tuile, et se fait couper
-      // par l'overflow-hidden du viewport qui gère le slide entre étapes. En inset, il
-      // reste toujours dans la boîte de la tuile, donc jamais rogné.
-      className={cn(
-        "relative flex aspect-square flex-col items-center justify-center gap-1.5 overflow-hidden rounded-lg bg-gradient-to-br text-white shadow-sm ring-2 ring-inset ring-transparent transition",
-        typeTileColors[type],
-        selected && "ring-primary"
-      )}
-    >
-      <Icon className="size-6" />
-      <span className="text-xs font-semibold">{productTypeLabels[type]}</span>
-      {selected && (
-        <span className="bg-primary text-primary-foreground absolute top-1.5 right-1.5 flex size-5 items-center justify-center rounded-full">
-          <Check className="size-3" />
-        </span>
-      )}
-    </button>
-  );
-}
-
 export function SuivreProduitDialog({
   products,
   referenceExtensions = [],
@@ -175,14 +107,14 @@ export function SuivreProduitDialog({
 }) {
   const [open, setOpen] = useState(false);
   const [handledSuccess, setHandledSuccess] = useState(false);
-  const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
+  const [step, setStep] = useState<1 | 2 | 3>(1);
   const [series, setSeries] = useState("");
   const [setName, setSetName] = useState("");
   const [selectedTypes, setSelectedTypes] = useState<ProductType[]>([]);
   const [selectedLanguages, setSelectedLanguages] = useState<string[]>([]);
   const [state, formAction, isPending] = useActionState(suivreNouveauProduit, null);
 
-  // La piste flex qui fait glisser les 4 étapes prend par défaut la hauteur de la plus
+  // La piste flex qui fait glisser les 3 étapes prend par défaut la hauteur de la plus
   // grande d'entre elles même quand une étape plus courte est affichée. On mesure donc
   // l'étape active pour caler la hauteur du viewport dessus. Callback ref plutôt que
   // useRef+useEffect : DialogContent (donc ce div) n'existe dans le DOM qu'une fois le
@@ -191,7 +123,7 @@ export function SuivreProduitDialog({
   // React à chaque fois qu'il (ré)attache le noeud, donc toujours à jour.
   const [trackHeight, setTrackHeight] = useState<number | undefined>(undefined);
 
-  function measureStep(el: HTMLDivElement | null, stepNumber: 1 | 2 | 3 | 4) {
+  function measureStep(el: HTMLDivElement | null, stepNumber: 1 | 2 | 3) {
     if (el && step === stepNumber) setTrackHeight(el.offsetHeight);
   }
 
@@ -234,16 +166,6 @@ export function SuivreProduitDialog({
     setSelectedLanguages([]);
   }
 
-  function toggleType(type: ProductType) {
-    setSelectedTypes((prev) =>
-      prev.includes(type) ? prev.filter((t) => t !== type) : [...prev, type]
-    );
-  }
-
-  function toggleAllTypes() {
-    setSelectedTypes((prev) => (prev.length === ALL_TYPES.length ? [] : ALL_TYPES));
-  }
-
   function toggleLanguage(language: string) {
     setSelectedLanguages((prev) =>
       prev.includes(language) ? prev.filter((l) => l !== language) : [...prev, language]
@@ -274,6 +196,7 @@ export function SuivreProduitDialog({
 
   function selectSetName(value: string) {
     setSetName(value);
+    setSelectedTypes(ALL_TYPES);
     setStep(3);
   }
 
@@ -308,7 +231,6 @@ export function SuivreProduitDialog({
             <div className={cn("h-1.5 flex-1 rounded-full", step >= 1 ? "bg-primary" : "bg-muted")} />
             <div className={cn("h-1.5 flex-1 rounded-full", step >= 2 ? "bg-primary" : "bg-muted")} />
             <div className={cn("h-1.5 flex-1 rounded-full", step >= 3 ? "bg-primary" : "bg-muted")} />
-            <div className={cn("h-1.5 flex-1 rounded-full", step >= 4 ? "bg-primary" : "bg-muted")} />
           </div>
 
           <p className="text-muted-foreground text-xs">
@@ -360,34 +282,6 @@ export function SuivreProduitDialog({
 
               <div
                 ref={(el) => measureStep(el, 3)}
-                className="flex w-full min-w-0 shrink-0 flex-col gap-2"
-              >
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">Choisis un ou plusieurs types</span>
-                  <label className="flex items-center gap-1.5 text-xs font-medium">
-                    <input
-                      type="checkbox"
-                      checked={selectedTypes.length === ALL_TYPES.length}
-                      onChange={toggleAllTypes}
-                      className="accent-primary size-3.5"
-                    />
-                    Tout sélectionner
-                  </label>
-                </div>
-                <div className="grid grid-cols-3 gap-2">
-                  {ALL_TYPES.map((t) => (
-                    <TypeTile
-                      key={t}
-                      type={t}
-                      selected={selectedTypes.includes(t)}
-                      onClick={() => toggleType(t)}
-                    />
-                  ))}
-                </div>
-              </div>
-
-              <div
-                ref={(el) => measureStep(el, 4)}
                 className="flex w-full min-w-0 shrink-0 flex-col gap-2"
               >
                 <div className="flex items-center justify-between">
@@ -446,31 +340,17 @@ export function SuivreProduitDialog({
                   type="button"
                   variant="outline"
                   className="flex-1"
-                  onClick={() => setStep((step - 1) as 1 | 2 | 3)}
+                  onClick={() => setStep((step - 1) as 1 | 2)}
                 >
                   Retour
                 </Button>
                 {step === 3 && (
                   <Button
-                    type="button"
-                    disabled={selectedTypes.length === 0}
-                    className="flex-1"
-                    onClick={() => setStep(4)}
-                  >
-                    Suivant
-                  </Button>
-                )}
-                {step === 4 && (
-                  <Button
                     type="submit"
                     disabled={isPending || selectedLanguages.length === 0}
                     className="flex-1"
                   >
-                    {isPending
-                      ? "Ajout..."
-                      : selectedTypes.length > 1
-                        ? `Suivre (${selectedTypes.length})`
-                        : "Suivre"}
+                    {isPending ? "Ajout..." : "Suivre"}
                   </Button>
                 )}
               </div>
