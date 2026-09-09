@@ -223,7 +223,7 @@ function ProduitDialog({
   // pire qu'aucune image : seule une vraie photo prise par l'utilisateur s'affiche ici.
   const typeOptions = Object.entries(productTypeLabels) as [ProductType, string][];
   // Types déjà signalés par la communauté pour cette série/extension précise (nos propres
-  // données, pas un catalogue tiers) : sert juste à avertir, jamais à bloquer — toutes les
+  // données, pas un catalogue tiers) : sert juste à avertir, jamais à bloquer. Toutes les
   // extensions n'ont pas les mêmes produits (pas de Duopack partout, par ex.), mais on ne
   // peut pas savoir à coup sûr qu'un type absent ici n'existe vraiment pas.
   const knownTypesForExtension = useMemo(() => {
@@ -382,18 +382,27 @@ function ProduitDialog({
         // Toujours preventDefault ici, même sans warning affiché : ouvrir l'appareil
         // photo natif (input file) fait perdre le focus à la page le temps de la prise
         // de vue, ce que Radix traite comme une interaction "hors du dialogue" et ferme
-        // tout par défaut — annulant la photo en cours. Le dialogue ne doit se fermer
-        // que via Annuler/la croix/la soumission, jamais par une perte de focus externe.
+        // tout par défaut, annulant la photo en cours. Le dialogue ne doit se fermer que
+        // via Annuler/la croix/la soumission, jamais par une perte de focus externe.
+        // Exception une fois publié (showSuccess) : plus rien à perdre, donc le premier
+        // clic (dedans ou dehors) referme, sans avoir à chercher un bouton.
         onPointerDownOutside={(e) => {
+          if (showSuccess) return;
           e.preventDefault();
           if (!showGuidelines) return;
           setShowGuidelines(false);
         }}
-        onFocusOutside={(e) => e.preventDefault()}
+        onFocusOutside={(e) => {
+          if (!showSuccess) e.preventDefault();
+        }}
         onInteractOutside={(e) => {
+          if (showSuccess) return;
           e.preventDefault();
           if (!showGuidelines) return;
           setShowGuidelines(false);
+        }}
+        onClick={() => {
+          if (showSuccess) handleOpenChange(false);
         }}
       >
         <div
@@ -642,7 +651,7 @@ function ProduitDialog({
                 }}
                 required={quantity !== "Rupture"}
                 disabled={quantity === "Rupture"}
-                placeholder={quantity === "Rupture" ? "Pas de prix en rupture" : "4.50"}
+                placeholder={quantity === "Rupture" ? "Pas de prix en rupture" : "6,99"}
               />
             </div>
             <div className="flex min-w-0 flex-1 flex-col gap-1.5">
@@ -777,7 +786,7 @@ function ProduitDialog({
                       value={cropZoom}
                       onChange={handleZoomChange}
                       aria-label="Zoom"
-                      className="w-full"
+                      className="w-full accent-[#f2a93c]"
                     />
                     <div className="flex gap-1.5">
                       <Button

@@ -23,10 +23,12 @@ export const languageOptions = ["Français", "Anglais", "Japonais", "Coréen", "
 
 export const quantityOptions: QuantityRange[] = ["1-5", "5-10", "10+", "Rupture"];
 
+// Fond plein (pas de /20 translucide) : ce badge flotte sur la photo du produit, souvent
+// colorée/chargée, un fond quasi transparent s'y noie et devient illisible.
 export const natureStyles: Record<AvailabilityNature, string> = {
-  Nouveau: "bg-sky-500/20 text-sky-300",
-  Promo: "bg-amber-500/20 text-amber-300",
-  Réassort: "bg-emerald-500/20 text-emerald-300",
+  Nouveau: "bg-sky-500 text-white shadow-sm",
+  Promo: "bg-amber-500 text-white shadow-sm",
+  Réassort: "bg-emerald-500 text-white shadow-sm",
 };
 
 export const languageAbbreviations: Record<string, string> = {

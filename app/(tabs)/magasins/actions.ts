@@ -9,6 +9,7 @@ import { ensureProfil } from "@/lib/profil";
 import { productTypeLabels, quantityOptions } from "@/lib/product-options";
 import {
   countEditsAutresToday,
+  countNouvellesAnnoncesToday,
   countSignalementsToday,
   countVotesToday,
   DAILY_LIMITS,
@@ -400,6 +401,13 @@ export async function enregistrerProduit(
     if (!language) return { error: "La langue est obligatoire." };
     if (!photoUrl) return { error: "Une photo est obligatoire." };
 
+    const reputation = await getReputation(user.id);
+    const tier = tierOf(reputation);
+    const usedToday = await countNouvellesAnnoncesToday(user.id);
+    if (usedToday >= DAILY_LIMITS[tier].nouvellesAnnonces) {
+      return { error: "Tu as atteint ta limite de nouvelles annonces pour aujourd'hui." };
+    }
+
     const productId = await findOrCreateProduct(productTypeLabels[type], series, setName, type);
 
     const existing = await sql`
@@ -412,7 +420,6 @@ export async function enregistrerProduit(
       };
     }
 
-    const reputation = await getReputation(user.id);
     const inserted = await sql`
       insert into public.disponibilites
         (produit_id, magasin_id, signale_par, prix_centimes, langue, quantite, nature, photo_url, confiance_base)

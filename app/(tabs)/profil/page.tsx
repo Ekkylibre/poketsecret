@@ -10,6 +10,7 @@ import { DeleteAccountDialog } from "@/components/delete-account-dialog";
 import { DevSimulatePremiumToggle } from "@/components/dev-simulate-premium-toggle";
 import { FollowProductButton } from "@/components/follow-product-button";
 import { FollowStoreButton } from "@/components/follow-store-button";
+import { HelpCard } from "@/components/help-card";
 import { NotificationNudgeBubble } from "@/components/notification-nudge-bubble";
 import { NotificationPermissionToggle } from "@/components/notification-permission-toggle";
 import { ReputationCard } from "@/components/reputation-card";
@@ -23,6 +24,12 @@ import { sql } from "@/lib/db";
 import { mockCurrentUser } from "@/lib/mock-data";
 import { ensureProfil } from "@/lib/profil";
 import { fetchFollowState, fetchProducts, fetchStores } from "@/lib/queries";
+import {
+  countMagasinsCetteSemaine,
+  countNouvellesAnnoncesToday,
+  countSignalementsToday,
+  countVotesToday,
+} from "@/lib/reputation";
 import { stripe } from "@/lib/stripe";
 import { formatStoreAddress } from "@/lib/utils";
 
@@ -104,14 +111,29 @@ export default async function ProfilPage({
   // rattacher des suivis, on n'a rien de plus honnête à montrer qu'une liste vide.
   let followedProducts: Awaited<ReturnType<typeof fetchProducts>> = [];
   let followedStores: Awaited<ReturnType<typeof fetchStores>> = [];
+  // Consommé aujourd'hui/cette semaine sur les quotas de paliers, affiché en "X/Y" dans
+  // ReputationCard : sans ça, ces quotas ne vivaient que côté serveur, l'utilisateur
+  // n'avait aucun moyen de savoir où il en est.
+  let quotaUsage = { votes: 0, signalements: 0, nouvellesAnnonces: 0, magasins: 0 };
   if (session?.user) {
-    const [followState, allProducts, allStores] = await Promise.all([
-      fetchFollowState(session.user.id),
-      fetchProducts(),
-      fetchStores(),
-    ]);
+    const [followState, allProducts, allStores, votesUsed, signalementsUsed, annoncesUsed, magasinsUsed] =
+      await Promise.all([
+        fetchFollowState(session.user.id),
+        fetchProducts(),
+        fetchStores(),
+        countVotesToday(session.user.id),
+        countSignalementsToday(session.user.id),
+        countNouvellesAnnoncesToday(session.user.id),
+        countMagasinsCetteSemaine(session.user.id),
+      ]);
     followedProducts = allProducts.filter((p) => followState.followedProductIds.includes(p.id));
     followedStores = allStores.filter((s) => followState.followedStoreIds.includes(s.id));
+    quotaUsage = {
+      votes: votesUsed,
+      signalements: signalementsUsed,
+      nouvellesAnnonces: annoncesUsed,
+      magasins: magasinsUsed,
+    };
   }
 
   return (
@@ -163,7 +185,7 @@ export default async function ProfilPage({
           </div>
         </Card>
 
-        <ReputationCard reputation={reputation} />
+        <ReputationCard reputation={reputation} usage={quotaUsage} />
 
         <div>
           <h2 className="text-muted-foreground mb-2 text-sm font-medium">Formules</h2>
@@ -317,6 +339,8 @@ export default async function ProfilPage({
             <DeleteAccountDialog />
           </Card>
         </div>
+
+        <HelpCard />
 
         {session?.user ? (
           <form action={signOut}>

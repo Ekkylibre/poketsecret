@@ -225,9 +225,11 @@ export function NotificationRow({
                 </Badge>
               )}
             </div>
-            <p className="text-muted-foreground flex items-center gap-1 truncate text-xs">
+            <p className="text-muted-foreground flex items-center gap-1 text-xs">
               <StoreIcon className="size-3 shrink-0" />
-              {store.name}, {formatStoreAddress(store)}
+              <span className="min-w-0 truncate">
+                {store.name}, {formatStoreAddress(store)}
+              </span>
             </p>
             <div className="text-muted-foreground/70 mt-1 flex flex-wrap items-center gap-1.5 text-[11px]">
               <span className="truncate">

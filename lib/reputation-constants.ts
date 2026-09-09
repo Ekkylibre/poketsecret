@@ -10,9 +10,13 @@ export const REPUTATION_START = 30;
 export type Tier = "nouveau" | "confirme" | "fiable";
 
 // Seuils nommés (plutôt que des littéraux dans tierOf) : réutilisés tels quels par
-// ReputationCard pour afficher "encore X points avant le prochain palier".
+// ReputationCard pour afficher "encore X points avant le prochain palier". La réputation
+// ne monte que d'une seule façon (voir resolveDisponibiliteVote) : quand d'autres
+// utilisateurs confirment activement une de ses annonces, +1 point à la fois. Fiable
+// (80) doit rester un vrai objectif rare/prestigieux ; Confirmé (40) reste proche du
+// départ pour ne pas décourager sur une app encore jeune avec peu de votants actifs.
 export const TIER_THRESHOLD_CONFIRME = 40;
-export const TIER_THRESHOLD_FIABLE = 70;
+export const TIER_THRESHOLD_FIABLE = 80;
 
 export function tierOf(reputation: number): Tier {
   if (reputation < TIER_THRESHOLD_CONFIRME) return "nouveau";
@@ -21,22 +25,32 @@ export function tierOf(reputation: number): Tier {
 }
 
 // Aucun palier n'est "illimité", même Fiable : un compte piraté avec des droits
-// illimités fait un dégât sans plafond. Fiable a juste un plafond nettement plus haut
-// que Confirmé, assez large pour ne jamais gêner un usage légitime, mais qui borne les
-// dégâts et laisse une trace détectable (pic d'activité) si le compte est compromis.
-export const DAILY_LIMITS: Record<Tier, { votes: number; signalements: number; editsAutres: number }> = {
+// illimités fait un dégât sans plafond. Les plafonds sont pensés comme des plafonds durs
+// pour UNE personne très engagée (pas une marge confortable) : même Fiable ne doit pas
+// dépasser ce qu'un contributeur assidu ferait honnêtement en une journée, sans quoi le
+// coût d'un compte compromis grandit trop vite à l'échelle de centaines d'utilisateurs.
+export const DAILY_LIMITS: Record<
+  Tier,
+  { votes: number; signalements: number; editsAutres: number; nouvellesAnnonces: number }
+> = {
   // editsAutres : modifier l'annonce de quelqu'un d'autre (prix/quantité/nature),
   // réservé à Confirmé+ (voir enregistrerProduit) ; Nouveau reste à 0, il ne peut de
   // toute façon éditer que ses propres annonces.
-  nouveau: { votes: 3, signalements: 1, editsAutres: 0 },
-  confirme: { votes: 20, signalements: 5, editsAutres: 10 },
-  fiable: { votes: 100, signalements: 20, editsAutres: 30 },
+  // nouvellesAnnonces : signaler un produit dans un magasin pour la première fois (pas
+  // les fois suivantes : revoir un produit déjà signalé compte comme un vote de
+  // confirmation, pas une nouvelle annonce). Progression plus douce que les autres
+  // quotas (x2 par palier au lieu de x3-4) : le stock de "premières fois" possibles
+  // reste limité même pour un compte très actif, chaque nouvelle annonce déclenchant en
+  // plus désormais une notification push aux abonnés.
+  nouveau: { votes: 3, signalements: 1, editsAutres: 0, nouvellesAnnonces: 5 },
+  confirme: { votes: 10, signalements: 3, editsAutres: 10, nouvellesAnnonces: 10 },
+  fiable: { votes: 25, signalements: 8, editsAutres: 30, nouvellesAnnonces: 20 },
 };
 
 export const MAGASIN_PAR_SEMAINE: Record<Tier, number> = {
   nouveau: 1,
-  confirme: 5,
-  fiable: 20,
+  confirme: 3,
+  fiable: 6,
 };
 
 /** Poids d'un vote = sa réputation normalisée, plancher à 0.1 (un compte tout neuf

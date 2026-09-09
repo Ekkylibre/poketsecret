@@ -42,15 +42,26 @@ const TIER_COLORS: Record<Tier, string> = {
   fiable: "text-emerald-400",
 };
 
-function formatLimit(value: number): string {
-  return value === Infinity ? "Illimité" : String(value);
+/** "X/Y" pour le palier actuel (compteur réel), juste la limite pour les autres (le
+ *  compteur ne s'y applique pas encore). */
+function formatCell(limit: number, used: number | undefined): string {
+  if (limit === Infinity) return "Illimité";
+  return used === undefined ? String(limit) : `${used}/${limit}`;
 }
 
 /** Explique le palier de réputation (nouveau/confirmé/fiable) : invisible ailleurs dans
  *  l'app, ces seuils ne vivaient jusqu'ici que côté serveur (quotas de votes/signalements
  *  dans lib/reputation.ts) sans que l'utilisateur puisse savoir où il en est ni ce qui
- *  l'attend en progressant — d'où le tableau des 3 paliers, pas juste l'actuel. */
-export function ReputationCard({ reputation }: { reputation: number }) {
+ *  l'attend en progressant, d'où le tableau des 3 paliers, pas juste l'actuel. */
+export function ReputationCard({
+  reputation,
+  usage,
+}: {
+  reputation: number;
+  /** Consommé aujourd'hui (votes/signalements/nouvellesAnnonces) et cette semaine
+   *  (magasins) par l'utilisateur, affiché en "X/Y" sur la ligne de son palier actuel. */
+  usage?: { votes: number; signalements: number; nouvellesAnnonces: number; magasins: number };
+}) {
   const tier = tierOf(reputation);
   const Icon = TIER_ICONS[tier];
 
@@ -68,7 +79,7 @@ export function ReputationCard({ reputation }: { reputation: number }) {
 
       <div>
         <ReputationGauge reputation={reputation} />
-        {/* Le nom de chaque palier aligné à gauche sur le repère où il démarre — les 3
+        {/* Le nom de chaque palier aligné à gauche sur le repère où il démarre, les 3
             au même traitement (pas l'un centré et l'autre aligné à droite), sinon ça ne
             lit plus comme "ce nom marque le début de cette zone" de façon cohérente. */}
         <div className="relative mt-1 h-3.5">
@@ -89,9 +100,10 @@ export function ReputationCard({ reputation }: { reputation: number }) {
           <thead>
             <tr className="text-muted-foreground border-b text-[10px]">
               <th className="py-1 text-left font-medium">Palier</th>
-              <th className="py-1 text-right font-medium">Votes/j</th>
-              <th className="py-1 text-right font-medium">Signal./j</th>
-              <th className="py-1 text-right font-medium">Magasins/sem</th>
+              <th className="py-1 text-center font-medium">Votes/j</th>
+              <th className="py-1 text-center font-medium">Signal./j</th>
+              <th className="py-1 text-center font-medium">Annonces/j</th>
+              <th className="py-1 text-center font-medium">Magasins/sem</th>
             </tr>
           </thead>
           <tbody>
@@ -126,27 +138,35 @@ export function ReputationCard({ reputation }: { reputation: number }) {
                   </td>
                   <td
                     className={cn(
-                      "py-1.5 text-right tabular-nums",
+                      "py-1.5 text-center tabular-nums",
                       !reached && "text-muted-foreground/40"
                     )}
                   >
-                    {formatLimit(limits.votes)}
+                    {formatCell(limits.votes, isCurrent ? usage?.votes : undefined)}
                   </td>
                   <td
                     className={cn(
-                      "py-1.5 text-right tabular-nums",
+                      "py-1.5 text-center tabular-nums",
                       !reached && "text-muted-foreground/40"
                     )}
                   >
-                    {formatLimit(limits.signalements)}
+                    {formatCell(limits.signalements, isCurrent ? usage?.signalements : undefined)}
                   </td>
                   <td
                     className={cn(
-                      "py-1.5 pr-1 text-right tabular-nums",
+                      "py-1.5 text-center tabular-nums",
                       !reached && "text-muted-foreground/40"
                     )}
                   >
-                    {formatLimit(MAGASIN_PAR_SEMAINE[t])}
+                    {formatCell(limits.nouvellesAnnonces, isCurrent ? usage?.nouvellesAnnonces : undefined)}
+                  </td>
+                  <td
+                    className={cn(
+                      "py-1.5 pr-1 text-center tabular-nums",
+                      !reached && "text-muted-foreground/40"
+                    )}
+                  >
+                    {formatCell(MAGASIN_PAR_SEMAINE[t], isCurrent ? usage?.magasins : undefined)}
                   </td>
                 </tr>
               );

@@ -285,6 +285,17 @@ export async function countEditsAutresToday(utilisateurId: string): Promise<numb
   return Number((rows[0] as { total: number }).total);
 }
 
+/** Nouvelles annonces (première dispo d'un produit dans un magasin, pas les
+ *  modifications) créées aujourd'hui par cet utilisateur. */
+export async function countNouvellesAnnoncesToday(utilisateurId: string): Promise<number> {
+  const rows = await sql`
+    select count(*)::int as total
+    from public.disponibilites
+    where signale_par = ${utilisateurId} and signale_le::date = current_date
+  `;
+  return Number((rows[0] as { total: number }).total);
+}
+
 export async function countMagasinsCetteSemaine(utilisateurId: string): Promise<number> {
   const rows = await sql`
     select count(*)::int as total
