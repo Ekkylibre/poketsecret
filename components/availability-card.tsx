@@ -149,8 +149,14 @@ export function AvailabilityCard({
             )}
           </div>
         </div>
-        <div className="flex min-h-5 flex-wrap items-center gap-1.5">
-          <span className="text-muted-foreground text-xs">{product.series}</span>
+        {/* max-w plutôt que juste min-w-0+truncate : sans plafond, le texte (souvent plus
+            long que la place dispo) est de toute façon forcé par flex-shrink à occuper
+            tout l'espace restant, collant le badge à l'extrémité de la card au lieu de
+            juste après le texte tronqué. */}
+        <div className="flex min-h-5 flex-nowrap items-center gap-1.5">
+          <span className="text-muted-foreground max-w-[65%] min-w-0 truncate text-xs">
+            {product.series}
+          </span>
           {availability.language && (
             <Badge variant="outline" className="shrink-0">
               {languageAbbreviations[availability.language] ?? availability.language}
@@ -163,50 +169,53 @@ export function AvailabilityCard({
             {store.name}, {store.city}
           </p>
         )}
-        <div className="flex min-h-5 flex-wrap items-center gap-1">
+        {/* Auteur/date sur sa propre ligne, collée aux votes juste en dessous (pas de
+            marge entre les deux, seul mt-auto sur le bloc pousse l'ensemble en bas de
+            la card s'il reste de la place). */}
+        <div className="mt-auto flex flex-col gap-0">
           <span className="text-muted-foreground/70 truncate text-xs">
             {authorLabel} · {authorTime}
           </span>
-        </div>
-        <div className="mt-auto flex flex-nowrap items-center gap-0 pt-0.5">
-          <div className="flex items-center">
-            <button
-              type="button"
-              disabled={isPending}
-              onClick={() => handleVote("confirm")}
-              aria-label={voted === "confirm" ? "Retirer ma confirmation" : "Confirmer cette disponibilité"}
-              aria-pressed={voted === "confirm"}
-              className="text-muted-foreground hover:bg-accent flex size-6 shrink-0 items-center justify-center rounded-md disabled:opacity-50"
-            >
-              <ThumbsUp className={cn("size-3", voted === "confirm" && "fill-primary text-primary")} />
-            </button>
-            <span className="text-muted-foreground text-[11px] tabular-nums">{confirmations}</span>
+          <div className="flex flex-nowrap items-center gap-0">
+            <div className="flex items-center">
+              <button
+                type="button"
+                disabled={isPending}
+                onClick={() => handleVote("confirm")}
+                aria-label={voted === "confirm" ? "Retirer ma confirmation" : "Confirmer cette disponibilité"}
+                aria-pressed={voted === "confirm"}
+                className="text-muted-foreground hover:bg-accent flex size-6 shrink-0 items-center justify-center rounded-md disabled:opacity-50"
+              >
+                <ThumbsUp className={cn("size-3", voted === "confirm" && "fill-primary text-primary")} />
+              </button>
+              <span className="text-muted-foreground text-[11px] tabular-nums">{confirmations}</span>
+            </div>
+            <div className="flex items-center">
+              <button
+                type="button"
+                disabled={isPending}
+                onClick={() => handleVote("dispute")}
+                aria-label={voted === "dispute" ? "Retirer ma contestation" : "Contester cette disponibilité"}
+                aria-pressed={voted === "dispute"}
+                className="text-muted-foreground hover:bg-accent flex size-6 shrink-0 items-center justify-center rounded-md disabled:opacity-50"
+              >
+                <ThumbsDown className={cn("size-3", voted === "dispute" && "fill-current")} />
+              </button>
+              <span className="text-muted-foreground text-[11px] tabular-nums">{disputes}</span>
+            </div>
+            <ConfidenceBadge
+              confidence={confidence}
+              className="ml-2 h-4 px-0.5 py-0 text-[10px] leading-none"
+            />
+            <SignalerDialog availabilityId={availability.id} />
+            <ModifierProduitDialog
+              storeId={storeId}
+              products={products}
+              availability={availability}
+              product={product}
+              size="sm"
+            />
           </div>
-          <div className="flex items-center">
-            <button
-              type="button"
-              disabled={isPending}
-              onClick={() => handleVote("dispute")}
-              aria-label={voted === "dispute" ? "Retirer ma contestation" : "Contester cette disponibilité"}
-              aria-pressed={voted === "dispute"}
-              className="text-muted-foreground hover:bg-accent flex size-6 shrink-0 items-center justify-center rounded-md disabled:opacity-50"
-            >
-              <ThumbsDown className={cn("size-3", voted === "dispute" && "fill-current")} />
-            </button>
-            <span className="text-muted-foreground text-[11px] tabular-nums">{disputes}</span>
-          </div>
-          <ConfidenceBadge
-            confidence={confidence}
-            className="ml-2 h-4 px-0.5 py-0 text-[10px] leading-none"
-          />
-          <SignalerDialog availabilityId={availability.id} />
-          <ModifierProduitDialog
-            storeId={storeId}
-            products={products}
-            availability={availability}
-            product={product}
-            size="sm"
-          />
         </div>
       </div>
     </Card>
