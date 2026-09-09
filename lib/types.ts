@@ -4,8 +4,13 @@ export type ProductType =
   | "display"
   | "coffret_dresseur_elite"
   | "coffret_premium"
+  | "coffret_ultra_premium"
   | "coffret"
   | "pokebox"
+  | "tin"
+  | "tripack"
+  | "bundle"
+  | "classeur"
   | "deck"
   | "autre";
 

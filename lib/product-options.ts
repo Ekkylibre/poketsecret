@@ -6,8 +6,13 @@ export const productTypeLabels: Record<ProductType, string> = {
   display: "Display",
   coffret_dresseur_elite: "Coffret Dresseur d'Élite",
   coffret_premium: "Coffret Premium",
+  coffret_ultra_premium: "Coffret Ultra Premium",
   coffret: "Coffret",
   pokebox: "Pokébox",
+  tin: "Tin",
+  tripack: "Tripack",
+  bundle: "Bundle",
+  classeur: "Classeur",
   deck: "Deck",
   autre: "Autre",
 };
