@@ -94,7 +94,6 @@ function ProduitDialog({
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [stepError, setStepError] = useState<string | null>(null);
   const [showGuidelines, setShowGuidelines] = useState(false);
-  const [showPhotoGuidelines, setShowPhotoGuidelines] = useState(false);
   const [photoDataUrl, setPhotoDataUrl] = useState<string | null>(availability?.photoUrl ?? null);
   // Recadrage de la photo dans l'aperçu (étape 3) : la photo brute reste dans
   // photoDataUrl, croppedPhotoDataUrl ne porte que le résultat une fois validé (sinon
@@ -267,7 +266,6 @@ function ProduitDialog({
       setStep(1);
       setStepError(null);
       setShowGuidelines(true);
-      setShowPhotoGuidelines(false);
       setPhotoDataUrl(availability?.photoUrl ?? null);
       resetCrop();
       const resetSeries = product?.series ?? "";
@@ -329,24 +327,21 @@ function ProduitDialog({
     }
   }
 
+  // Un seul avertissement à l'ouverture du dialogue (fusionne les règles de contribution
+  // et, en création, celles de la photo) : le confirmer ouvre directement l'appareil
+  // photo au lieu d'exiger un second avertissement après un clic supplémentaire sur le
+  // carré "Prendre une photo".
+  function handleConfirmGuidelines() {
+    if (mode === "create" && !photoDataUrl) {
+      fileInputRef.current?.click();
+    }
+    setShowGuidelines(false);
+  }
+
   function handlePhotoClick(e: MouseEvent) {
     e.preventDefault();
     e.stopPropagation();
-    // L'avertissement ne sert qu'avant la toute première photo : pour reprendre une
-    // photo déjà prise, on rouvre directement le sélecteur.
-    if (photoDataUrl) {
-      fileInputRef.current?.click();
-    } else {
-      setShowPhotoGuidelines(true);
-    }
-  }
-
-  function handleConfirmPhotoGuidelines() {
-    // .click() avant le setState : sur mobile, ouvrir la caméra (capture=environment)
-    // est plus sensible qu'un simple sélecteur de fichiers et peut exiger d'être
-    // l'action la plus directe possible du geste utilisateur.
     fileInputRef.current?.click();
-    setShowPhotoGuidelines(false);
   }
 
   function handlePhotoChange(e: ChangeEvent<HTMLInputElement>) {
@@ -380,10 +375,9 @@ function ProduitDialog({
       </DialogTrigger>
       <DialogContent
         onEscapeKeyDown={(e) => {
-          if (!showGuidelines && !showPhotoGuidelines) return;
+          if (!showGuidelines) return;
           e.preventDefault();
           setShowGuidelines(false);
-          setShowPhotoGuidelines(false);
         }}
         // Toujours preventDefault ici, même sans warning affiché : ouvrir l'appareil
         // photo natif (input file) fait perdre le focus à la page le temps de la prise
@@ -392,22 +386,20 @@ function ProduitDialog({
         // que via Annuler/la croix/la soumission, jamais par une perte de focus externe.
         onPointerDownOutside={(e) => {
           e.preventDefault();
-          if (!showGuidelines && !showPhotoGuidelines) return;
+          if (!showGuidelines) return;
           setShowGuidelines(false);
-          setShowPhotoGuidelines(false);
         }}
         onFocusOutside={(e) => e.preventDefault()}
         onInteractOutside={(e) => {
           e.preventDefault();
-          if (!showGuidelines && !showPhotoGuidelines) return;
+          if (!showGuidelines) return;
           setShowGuidelines(false);
-          setShowPhotoGuidelines(false);
         }}
       >
         <div
           className={cn(
             "flex min-w-0 flex-col gap-4 transition-all duration-300",
-            (showGuidelines || showPhotoGuidelines) && "pointer-events-none brightness-[0.4]"
+            showGuidelines && "pointer-events-none brightness-[0.4]"
           )}
         >
           <DialogHeader>
@@ -997,13 +989,8 @@ function ProduitDialog({
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
-                setShowGuidelines(false);
+                handleConfirmGuidelines();
               }}
-              // Un vrai <button> plutôt qu'un <div role="button"> : sur iOS Safari, un
-              // élément non nativement interactif peut exiger un premier tap "à vide"
-              // (simulation du survol) avant qu'un second tap ne déclenche réellement le
-              // clic — d'où le besoin de confirmer deux fois avant que la prise de photo
-              // ne s'enchaîne juste après.
               className="animate-alert-in border-amber-500/50 bg-card text-muted-foreground relative flex w-full cursor-pointer flex-col gap-2 overflow-hidden rounded-md border p-4 pt-5 pb-5 text-left text-xs shadow-2xl"
             >
               <div
@@ -1036,8 +1023,11 @@ function ProduitDialog({
               <ul className="list-disc space-y-0.5 pl-4">
                 {mode === "create" ? (
                   <>
-                    <li>Produit réellement disponible dans ce magasin</li>
-                    <li>Prix et quantité vérifiés</li>
+                    <li>
+                      Photo prise par toi, à l&apos;instant, dans ce magasin (pas une image trouvée en
+                      ligne), nette et bien éclairée
+                    </li>
+                    <li>Produit réellement disponible, prix et quantité vérifiés</li>
                     <li>Déjà référencé ? Confirme l&apos;annonce existante plutôt que d&apos;en créer une nouvelle</li>
                     <li>Orthographe et majuscules soignées, pour le bien de tous</li>
                   </>
@@ -1062,67 +1052,9 @@ function ProduitDialog({
                 débloquent plus de droits (votes, signalements, magasins par semaine).
               </p>
               <p className="text-muted-foreground animate-gentle-blink mt-1 text-center text-[11px]">
-                Touche pour confirmer, en dehors pour annuler
-              </p>
-            </button>
-          </div>
-        )}
-
-        {showPhotoGuidelines && (
-          <div
-            className="absolute inset-0 z-20 flex items-center justify-center p-4"
-            onClick={() => setShowPhotoGuidelines(false)}
-          >
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                handleConfirmPhotoGuidelines();
-              }}
-              className="animate-alert-in border-amber-500/50 bg-card text-muted-foreground relative flex w-full cursor-pointer flex-col gap-2 overflow-hidden rounded-md border p-4 pt-5 pb-5 text-left text-xs shadow-2xl"
-            >
-              <div
-                aria-hidden
-                className="animate-hazard-stripes absolute inset-x-0 top-0 h-1.5"
-                style={{
-                  backgroundImage: "repeating-linear-gradient(45deg, #f5b400 0 7px, #1a1a1a 7px 14px)",
-                  backgroundSize: "28px 100%",
-                }}
-              />
-              <div
-                aria-hidden
-                className="animate-hazard-stripes absolute inset-x-0 bottom-0 h-1.5"
-                style={{
-                  backgroundImage: "repeating-linear-gradient(45deg, #f5b400 0 7px, #1a1a1a 7px 14px)",
-                  backgroundSize: "28px 100%",
-                }}
-              />
-
-              <div className="mb-1 flex flex-col items-center gap-1">
-                <Logo className="size-9" />
-                <p className="text-sm font-bold">
-                  Poket<span className="text-[#f2a93c]">Secret</span>
-                </p>
-              </div>
-              <p className="flex items-center gap-1.5 text-sm font-semibold text-amber-400">
-                <TriangleAlert className="size-4" />
-                Avant de prendre la photo
-              </p>
-              <ul className="list-disc space-y-0.5 pl-4">
-                <li>Prise par toi, à l&apos;instant, dans ce magasin (pas une image trouvée en ligne)</li>
-                <li>Photo nette et bien éclairée</li>
-                <li>Produit clairement identifiable</li>
-                <li>Aucun contenu inapproprié ou hors sujet</li>
-              </ul>
-              <p className="text-amber-400/90">
-                Les signalements répétés font baisser ta fiabilité et peuvent restreindre ton compte.
-              </p>
-              <p className="text-muted-foreground">
-                À l&apos;inverse, des contributions de qualité font monter ta réputation et
-                débloquent plus de droits (votes, signalements, magasins par semaine).
-              </p>
-              <p className="text-muted-foreground animate-gentle-blink mt-1 text-center text-[11px]">
-                Touche pour confirmer, en dehors pour annuler
+                {mode === "create"
+                  ? "Touche pour confirmer et ouvrir l'appareil photo, en dehors pour annuler"
+                  : "Touche pour confirmer, en dehors pour annuler"}
               </p>
             </button>
           </div>
