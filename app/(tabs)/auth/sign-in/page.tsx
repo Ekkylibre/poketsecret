@@ -6,6 +6,7 @@ import { useActionState } from "react";
 import { signInWithEmail } from "./actions";
 import { DemoPreviewEnterLink } from "@/components/demo-preview-toggle";
 import { GoogleSignInButton } from "@/components/google-sign-in-button";
+import { Logo } from "@/components/logo";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -17,6 +18,13 @@ export default function SignInPage() {
 
   return (
     <div className="flex flex-1 flex-col items-center justify-center p-4">
+      <div className="mb-6 flex flex-col items-center gap-2">
+        <Logo className="size-14" />
+        <p className="text-base font-semibold tracking-tight">
+          Poket<span className="text-[#f2a93c]">Secret</span>
+        </p>
+      </div>
+
       <Card className="w-full max-w-sm gap-5 p-5">
         <div>
           <h1 className="text-lg font-semibold">Connexion</h1>
