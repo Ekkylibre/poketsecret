@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useState } from "react";
 
-// Lyon — cohérent avec les données de démo, en attendant la vraie géoloc au chargement.
+// Lyon, cohérent avec les données de démo, en attendant la vraie géoloc au chargement.
 const DEFAULT_CENTER = { lat: 45.764, lng: 4.8357 };
 const DEFAULT_RADIUS_KM = 10;
 

@@ -239,7 +239,7 @@ export const mockCurrentUser: UserProfile = {
   readNotificationIds: [],
 };
 
-/** Pseudo affiché pour un id utilisateur — pas encore de vraie table users côté mock. */
+/** Pseudo affiché pour un id utilisateur, pas encore de vraie table users côté mock. */
 export const mockUsers: Record<string, string> = {
   "user-1": "Didoux",
   "user-2": "Marion_TCG",

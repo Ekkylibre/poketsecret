@@ -87,7 +87,7 @@ export async function openBillingPortal() {
 }
 
 /** Dev uniquement : simule un abonnement avec un vrai objet Stripe (mode test, carte de
- *  test intégrée pm_card_visa) plutôt qu'un simple flag en base — pour ne pas avoir à
+ *  test intégrée pm_card_visa) plutôt qu'un simple flag en base, pour ne pas avoir à
  *  ressaisir une carte à chaque fois pendant le développement, tout en gardant "Gérer
  *  l'abonnement" fonctionnel ensuite (vrai portail Stripe, vraie annulation, vrais
  *  webhooks). Jamais exposé en prod (le composant qui l'appelle ne se rend pas non plus

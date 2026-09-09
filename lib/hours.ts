@@ -35,7 +35,7 @@ export function getTodayWeekday(): Weekday {
 }
 
 /** Reconstruit les horaires d'un magasin à partir des champs `hours_<jour>_*` d'un
- *  formulaire (nouveau-magasin-dialog) — utilisé côté serveur et pour l'aperçu client. */
+ *  formulaire (nouveau-magasin-dialog), utilisé côté serveur et pour l'aperçu client. */
 export function parseHoursFromFormData(formData: FormData): StoreHours {
   const hours: StoreHours = {};
   for (const day of weekdayOrder) {

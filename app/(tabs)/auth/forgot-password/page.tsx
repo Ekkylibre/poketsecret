@@ -23,7 +23,7 @@ export default function ForgotPasswordPage() {
 
         {state?.success ? (
           <p className="text-muted-foreground text-sm">
-            Si un compte existe avec cet email, un lien de réinitialisation vient de partir —
+            Si un compte existe avec cet email, un lien de réinitialisation vient de partir,
             vérifie ta boîte de réception.
           </p>
         ) : (

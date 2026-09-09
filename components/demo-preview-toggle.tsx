@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 
 // Sert uniquement à prévisualiser l'état "connecté" du profil sans vraie session (utile
-// en dev tant que l'auth réelle n'est pas branchée partout) — un cookie, lu côté serveur
+// en dev tant que l'auth réelle n'est pas branchée partout). Un cookie, lu côté serveur
 // par la page, pas une vraie authentification.
 const COOKIE_NAME = "demo-preview-connected";
 

@@ -25,7 +25,7 @@ export function ResetPasswordForm({ token }: { token?: string }) {
           </p>
         ) : state?.success ? (
           <p className="text-muted-foreground text-sm">
-            Mot de passe mis à jour — tu peux te connecter avec.
+            Mot de passe mis à jour, tu peux te connecter avec.
           </p>
         ) : (
           <form action={formAction} className="flex flex-col gap-4">

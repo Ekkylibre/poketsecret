@@ -7,8 +7,8 @@ import { stripe } from "@/lib/stripe";
 /**
  * Source de vérité pour le statut Premium : contrairement au retour sur /profil après
  * paiement (qui ne voit que le tout premier succès), ce webhook capte aussi les
- * événements qui arrivent après coup — renouvellement, échec de paiement, annulation
- * depuis le portail Stripe — pour garder `est_premium` synchronisé dans le temps.
+ * événements qui arrivent après coup (renouvellement, échec de paiement, annulation
+ * depuis le portail Stripe) pour garder `est_premium` synchronisé dans le temps.
  */
 export async function POST(request: Request) {
   const signature = request.headers.get("stripe-signature");
@@ -46,7 +46,7 @@ export async function POST(request: Request) {
     }
 
     // Renouvellement/annulation/échec de paiement débouchent tous, tôt ou tard, sur un
-    // changement de statut ici — pas besoin d'écouter invoice.payment_failed séparément.
+    // changement de statut ici, pas besoin d'écouter invoice.payment_failed séparément.
     case "customer.subscription.updated":
     case "customer.subscription.deleted": {
       const subscription = event.data.object as Stripe.Subscription;
