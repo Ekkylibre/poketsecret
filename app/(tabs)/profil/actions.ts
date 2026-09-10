@@ -34,9 +34,12 @@ export async function savePushSubscription(subscription: {
 }
 
 /** Appelée quand l'utilisateur désactive les notifications côté app (pas forcément une
- *  vraie désinscription navigateur, mais on arrête d'envoyer vers cet endpoint). */
+ *  vraie désinscription navigateur, mais on arrête d'envoyer vers cet endpoint). Limité à
+ *  ses propres abonnements : sans ça, n'importe qui pourrait désabonner n'importe quel
+ *  appareil en devinant/connaissant son endpoint. */
 export async function deletePushSubscription(endpoint: string) {
-  await sql`delete from public.push_subscriptions where endpoint = ${endpoint}`;
+  const user = await requireSession();
+  await sql`delete from public.push_subscriptions where endpoint = ${endpoint} and utilisateur_id = ${user.id}`;
 }
 
 async function currentOrigin() {

@@ -107,6 +107,11 @@ export async function reportStore(storeId: string) {
   const user = await requireSession();
   await ensureProfil(user.id, user.name);
 
+  const storeRows = await sql`select cree_par from public.magasins where id = ${storeId}`;
+  if ((storeRows[0] as { cree_par: string | null } | undefined)?.cree_par === user.id) {
+    return { error: "Tu ne peux pas signaler ton propre magasin." };
+  }
+
   await sql`
     insert into public.votes_magasins (magasin_id, utilisateur_id, type, categorie)
     values (${storeId}, ${user.id}, 'signalement', 'inapproprie')
@@ -136,6 +141,11 @@ export async function signalerMagasin(
     return { error: "Choisis une raison." };
   }
   const categorie = CATEGORIE_MAGASIN[reason] ?? "inapproprie";
+
+  const storeRows = await sql`select cree_par from public.magasins where id = ${storeId}`;
+  if ((storeRows[0] as { cree_par: string | null } | undefined)?.cree_par === user.id) {
+    return { error: "Tu ne peux pas signaler ton propre magasin." };
+  }
 
   const quotaError = await checkSignalementQuota(user.id);
   if (quotaError) return { error: quotaError };
@@ -402,13 +412,9 @@ export async function enregistrerProduit(
     if (!language) return { error: "La langue est obligatoire." };
     if (!photoDataUrl) return { error: "Une photo est obligatoire." };
 
-    let photoUrl: string;
-    try {
-      photoUrl = await uploadDataUrlToBlob(photoDataUrl, `dispos/${storeId}.jpg`);
-    } catch {
-      return { error: "Impossible d'enregistrer la photo, réessaie." };
-    }
-
+    // Quota et doublon vérifiés avant l'upload (pas après) : uploader la photo est
+    // coûteux (stockage Blob), inutile de le faire pour une annonce qui va de toute façon
+    // être rejetée juste après.
     const reputation = await getReputation(user.id);
     const tier = tierOf(reputation);
     const usedToday = await countNouvellesAnnoncesToday(user.id);
@@ -426,6 +432,13 @@ export async function enregistrerProduit(
         error:
           "Ce produit est déjà référencé dans ce magasin. Confirme l'annonce existante plutôt que d'en créer une nouvelle.",
       };
+    }
+
+    let photoUrl: string;
+    try {
+      photoUrl = await uploadDataUrlToBlob(photoDataUrl, `dispos/${storeId}.jpg`);
+    } catch (err) {
+      return { error: err instanceof Error ? err.message : "Impossible d'enregistrer la photo, réessaie." };
     }
 
     const inserted = await sql`
@@ -494,7 +507,23 @@ export async function voterDisponibilite(
 }
 
 export async function togglePinDisponibilite(availabilityId: string) {
-  await requireSession();
+  const user = await requireSession();
+  await ensureProfil(user.id, user.name);
+
+  const dispoRows = await sql`select signale_par from public.disponibilites where id = ${availabilityId}`;
+  const dispo = dispoRows[0] as { signale_par: string | null } | undefined;
+  if (!dispo) return { error: "Disponibilité introuvable." };
+
+  // Épingler reste ouvert à tout utilisateur connecté (mise en avant communautaire, pas
+  // réservée à l'auteur), mais mettre en avant l'annonce de quelqu'un d'autre est réservé
+  // à Confirmé+ comme le reste des actions sur du contenu d'autrui (voir enregistrerProduit) :
+  // sans ça, un compte tout juste créé pouvait épingler/désépingler n'importe quoi sans limite.
+  if (dispo.signale_par !== user.id) {
+    const reputation = await getReputation(user.id);
+    if (tierOf(reputation) === "nouveau") {
+      return { error: "Il faut être au moins Confirmé pour épingler l'annonce de quelqu'un d'autre." };
+    }
+  }
 
   const rows = await sql`
     update public.disponibilites set epingle = not epingle where id = ${availabilityId}

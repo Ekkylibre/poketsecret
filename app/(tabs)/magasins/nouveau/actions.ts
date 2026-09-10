@@ -6,8 +6,20 @@ import { requireSession } from "@/lib/auth/require-session";
 import { sql } from "@/lib/db";
 import { parseHoursFromFormData } from "@/lib/hours";
 import { ensureProfil } from "@/lib/profil";
-import { countMagasinsCetteSemaine, MAGASIN_PAR_SEMAINE, REPUTATION_START, tierOf } from "@/lib/reputation";
+import {
+  countEditsMagasinAutresToday,
+  countMagasinsCetteSemaine,
+  DAILY_LIMITS,
+  MAGASIN_PAR_SEMAINE,
+  REPUTATION_START,
+  tierOf,
+} from "@/lib/reputation";
 import { PHONE_PATTERN } from "@/lib/utils";
+
+async function getReputation(userId: string): Promise<number> {
+  const rows = await sql`select reputation from public.profils_utilisateurs where id = ${userId}`;
+  return (rows[0] as { reputation: number } | undefined)?.reputation ?? REPUTATION_START;
+}
 
 export interface CreerMagasinState {
   error?: string;
@@ -36,9 +48,7 @@ export async function creerMagasin(
     return { error: "Numéro de téléphone invalide." };
   }
 
-  const repRows = await sql`select reputation from public.profils_utilisateurs where id = ${user.id}`;
-  const reputation = (repRows[0] as { reputation: number } | undefined)?.reputation ?? REPUTATION_START;
-  const tier = tierOf(reputation);
+  const tier = tierOf(await getReputation(user.id));
   const cetteSemaine = await countMagasinsCetteSemaine(user.id);
   if (cetteSemaine >= MAGASIN_PAR_SEMAINE[tier]) {
     return { error: "Tu as atteint ta limite d'ajout de magasins pour cette semaine." };
@@ -75,6 +85,26 @@ export async function modifierMagasin(
 ): Promise<CreerMagasinState> {
   const user = await requireSession();
   await ensureProfil(user.id, user.name);
+
+  const existingRows = await sql`select cree_par from public.magasins where id = ${storeId}`;
+  const createurId = (existingRows[0] as { cree_par: string | null } | undefined)?.cree_par;
+  if (existingRows.length === 0) {
+    return { error: "Magasin introuvable." };
+  }
+
+  // Modifier le magasin de quelqu'un d'autre est réservé à Confirmé+ et soumis au même
+  // quota que les modifications d'annonces d'autrui (voir enregistrerProduit) : sans ça,
+  // un compte tout juste créé pourrait défigurer n'importe quel magasin.
+  if (createurId !== user.id) {
+    const tier = tierOf(await getReputation(user.id));
+    if (tier === "nouveau") {
+      return { error: "Il faut être au moins Confirmé pour modifier le magasin de quelqu'un d'autre." };
+    }
+    const used = await countEditsMagasinAutresToday(user.id);
+    if (used >= DAILY_LIMITS[tier].editsAutres) {
+      return { error: "Tu as atteint ta limite de modifications de magasins d'autrui pour aujourd'hui." };
+    }
+  }
 
   const name = (formData.get("name") as string)?.trim();
   const address = (formData.get("address") as string)?.trim();

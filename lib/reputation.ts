@@ -296,6 +296,19 @@ export async function countNouvellesAnnoncesToday(utilisateurId: string): Promis
   return Number((rows[0] as { total: number }).total);
 }
 
+/** Même principe que countEditsAutresToday, mais pour les modifications de magasins
+ *  appartenant à quelqu'un d'autre (voir modifierMagasin). */
+export async function countEditsMagasinAutresToday(utilisateurId: string): Promise<number> {
+  const rows = await sql`
+    select count(*)::int as total
+    from public.magasins
+    where modifie_par = ${utilisateurId}
+      and cree_par != ${utilisateurId}
+      and modifie_le::date = current_date
+  `;
+  return Number((rows[0] as { total: number }).total);
+}
+
 export async function countMagasinsCetteSemaine(utilisateurId: string): Promise<number> {
   const rows = await sql`
     select count(*)::int as total
