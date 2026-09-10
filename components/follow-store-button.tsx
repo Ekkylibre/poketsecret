@@ -2,6 +2,7 @@
 
 import { Bell } from "lucide-react";
 import { type MouseEvent, useState, useTransition } from "react";
+import { toast } from "sonner";
 
 import { toggleFollowStore } from "@/app/(tabs)/magasins/actions";
 import { cn } from "@/lib/utils";
@@ -25,7 +26,10 @@ export function FollowStoreButton({
     setFollowed(next);
     startTransition(async () => {
       const result = await toggleFollowStore(storeId);
-      if (result.error) setFollowed(!next);
+      if (result.error) {
+        setFollowed(!next);
+        toast.error(result.error);
+      }
     });
   }
 

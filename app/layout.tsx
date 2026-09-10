@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { Toaster } from "sonner";
 import "./globals.css";
 import { SplashScreen } from "@/components/splash-screen";
 
@@ -59,6 +60,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <body className="flex h-dvh flex-col overflow-hidden">
         <SplashScreen />
         {children}
+        <Toaster theme="dark" position="top-center" richColors />
       </body>
     </html>
   );

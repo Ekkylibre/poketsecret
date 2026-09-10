@@ -2,6 +2,7 @@
 
 import { Pin } from "lucide-react";
 import { type MouseEvent, useState, useTransition } from "react";
+import { toast } from "sonner";
 
 import { togglePinStore } from "@/app/(tabs)/magasins/actions";
 import { cn } from "@/lib/utils";
@@ -25,7 +26,10 @@ export function PinStoreButton({
     setPinned(next);
     startTransition(async () => {
       const result = await togglePinStore(storeId);
-      if (result.error) setPinned(!next);
+      if (result.error) {
+        setPinned(!next);
+        toast.error(result.error);
+      }
     });
   }
 
