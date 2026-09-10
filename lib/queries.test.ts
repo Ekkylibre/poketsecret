@@ -179,13 +179,16 @@ describe("fetchAvailabilities", () => {
 });
 
 describe("fetchAuthorPseudos", () => {
-  it("construit un dictionnaire id -> pseudo", async () => {
+  it("construit un dictionnaire id -> { pseudo, palier dérivé de la réputation }", async () => {
     sqlMock.mockResolvedValue([
-      { id: "u1", pseudo: "Sacha" },
-      { id: "u2", pseudo: "Ondine" },
+      { id: "u1", pseudo: "Sacha", reputation: 90 },
+      { id: "u2", pseudo: "Ondine", reputation: 10 },
     ]);
 
-    expect(await fetchAuthorPseudos()).toEqual({ u1: "Sacha", u2: "Ondine" });
+    expect(await fetchAuthorPseudos()).toEqual({
+      u1: { pseudo: "Sacha", tier: "fiable" },
+      u2: { pseudo: "Ondine", tier: "nouveau" },
+    });
   });
 
   it("retourne un objet vide sans utilisateur", async () => {
