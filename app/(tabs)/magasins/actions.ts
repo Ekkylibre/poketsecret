@@ -42,6 +42,35 @@ async function getReputation(userId: string): Promise<number> {
   return (rows[0] as { reputation: number } | undefined)?.reputation ?? REPUTATION_START;
 }
 
+async function isPremium(userId: string): Promise<boolean> {
+  const rows = await sql`select est_premium from public.profils_utilisateurs where id = ${userId}`;
+  return (rows[0] as { est_premium: boolean } | undefined)?.est_premium ?? false;
+}
+
+/** Plan gratuit (voir PLAN_FEATURES dans profil/page.tsx) : une seule extension suivie à
+ *  la fois. Suivre plusieurs types au sein d'une même extension déjà suivie reste
+ *  gratuit (produits_suivis a une ligne par type, mais ça reste UNE extension pour
+ *  l'utilisateur) ; suivre une extension différente est réservé au Premium. */
+async function canFollowExtension(userId: string, serie: string, extension: string): Promise<boolean> {
+  if (await isPremium(userId)) return true;
+
+  const already = await sql`
+    select 1 from public.produits_suivis ps
+    join public.produits p on p.id = ps.produit_id
+    where ps.utilisateur_id = ${userId} and p.serie = ${serie} and p.extension = ${extension}
+    limit 1
+  `;
+  if (already.length > 0) return true;
+
+  const rows = await sql`
+    select count(distinct (p.serie, p.extension))::int as total
+    from public.produits_suivis ps
+    join public.produits p on p.id = ps.produit_id
+    where ps.utilisateur_id = ${userId}
+  `;
+  return Number((rows[0] as { total: number }).total) === 0;
+}
+
 /** Retourne un message d'erreur si le palier de l'utilisateur ne l'autorise plus à
  *  voter/signaler aujourd'hui, sinon null. Compte à partir des tables de vote
  *  elles-mêmes plutôt qu'un compteur séparé, pour ne jamais désynchroniser. */
@@ -208,6 +237,14 @@ export async function toggleFollowStore(storeId: string) {
   if (deleted.length > 0) {
     followed = false;
   } else {
+    if (!(await isPremium(user.id))) {
+      const current = await sql`
+        select count(*)::int as total from public.magasins_suivis where utilisateur_id = ${user.id}
+      `;
+      if (Number((current[0] as { total: number }).total) >= 1) {
+        return { error: "Passe Premium pour suivre plus d'un magasin." };
+      }
+    }
     try {
       await sql`
         insert into public.magasins_suivis (utilisateur_id, magasin_id)
@@ -239,6 +276,13 @@ export async function toggleFollowProduct(productId: string) {
   if (deleted.length > 0) {
     followed = false;
   } else {
+    const productRows = await sql`select serie, extension from public.produits where id = ${productId}`;
+    const product = productRows[0] as { serie: string; extension: string } | undefined;
+    if (!product) return { error: "Produit introuvable." };
+    if (!(await canFollowExtension(user.id, product.serie, product.extension))) {
+      return { error: "Passe Premium pour suivre une extension différente." };
+    }
+
     try {
       await sql`
         insert into public.produits_suivis (utilisateur_id, produit_id)
@@ -302,6 +346,12 @@ export async function suivreNouveauProduit(
   if (!setName) return { error: "L'extension est obligatoire." };
   if (types.length === 0) return { error: "Choisis au moins un type." };
   if (langues.length === 0) return { error: "Choisis au moins une langue." };
+
+  // Vérifié une seule fois pour toute l'extension (pas par type dans la boucle) : suivre
+  // plusieurs types d'une même extension ne doit pas compter comme plusieurs extensions.
+  if (!(await canFollowExtension(user.id, series, setName))) {
+    return { error: "Passe Premium pour suivre une extension différente." };
+  }
 
   for (const typeRaw of types) {
     const type = (typeRaw || "autre") as ProductType;
@@ -514,15 +564,12 @@ export async function togglePinDisponibilite(availabilityId: string) {
   const dispo = dispoRows[0] as { signale_par: string | null } | undefined;
   if (!dispo) return { error: "Disponibilité introuvable." };
 
-  // Épingler reste ouvert à tout utilisateur connecté (mise en avant communautaire, pas
-  // réservée à l'auteur), mais mettre en avant l'annonce de quelqu'un d'autre est réservé
-  // à Confirmé+ comme le reste des actions sur du contenu d'autrui (voir enregistrerProduit) :
-  // sans ça, un compte tout juste créé pouvait épingler/désépingler n'importe quoi sans limite.
-  if (dispo.signale_par !== user.id) {
-    const reputation = await getReputation(user.id);
-    if (tierOf(reputation) === "nouveau") {
-      return { error: "Il faut être au moins Confirmé pour épingler l'annonce de quelqu'un d'autre." };
-    }
+  // Épingler sa propre annonce reste gratuit, mais mettre en avant l'annonce de
+  // quelqu'un d'autre est un avantage Premium (voir PLAN_FEATURES dans profil/page.tsx),
+  // pas une histoire de palier de réputation : sans ça, un compte tout juste créé pouvait
+  // épingler/désépingler n'importe quoi sans limite.
+  if (dispo.signale_par !== user.id && !(await isPremium(user.id))) {
+    return { error: "Passe Premium pour épingler l'annonce de quelqu'un d'autre." };
   }
 
   const rows = await sql`

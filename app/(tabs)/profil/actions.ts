@@ -18,13 +18,22 @@ export async function signOut() {
 
 /** Enregistre l'abonnement push renvoyé par pushManager.subscribe() côté client. Un
  *  utilisateur peut avoir plusieurs abonnements (un par navigateur/appareil) : on ne
- *  remplace pas, on ajoute (on conflict sur endpoint, unique par abonnement navigateur). */
+ *  remplace pas, on ajoute (on conflict sur endpoint, unique par abonnement navigateur).
+ *  Réservé au Premium (voir PLAN_FEATURES dans profil/page.tsx) : NotificationPermissionToggle
+ *  cache déjà l'interrupteur côté UI pour les comptes gratuits, mais ça ne protège pas
+ *  contre un appel direct de cette action, donc revérifié ici. */
 export async function savePushSubscription(subscription: {
   endpoint: string;
   keys: { p256dh: string; auth: string };
 }) {
   const user = await requireSession();
   await ensureProfil(user.id, user.name);
+
+  const rows = await sql`select est_premium from public.profils_utilisateurs where id = ${user.id}`;
+  const estPremium = (rows[0] as { est_premium: boolean } | undefined)?.est_premium ?? false;
+  if (!estPremium) {
+    return { error: "Passe Premium pour activer les notifications." };
+  }
 
   await sql`
     insert into public.push_subscriptions (utilisateur_id, endpoint, p256dh, auth)

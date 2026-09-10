@@ -22,8 +22,8 @@ export default function CgvPage() {
           <h2 className="font-semibold">1. Objet</h2>
           <p className="text-muted-foreground leading-relaxed">
             Ces conditions régissent la vente de l&apos;abonnement PoketSecret Premium :
-            produits et magasins suivis illimités, notifications en temps réel,
-            épinglage d&apos;annonces, badge Couronne sur le profil.
+            extensions et magasins suivis illimités, notifications en temps réel,
+            épinglage d&apos;annonces.
           </p>
         </section>
 

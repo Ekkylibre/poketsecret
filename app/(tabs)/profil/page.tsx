@@ -1,4 +1,4 @@
-import { CircleCheck, Crown, Lock, Mail, MapPin, Star } from "lucide-react";
+import { CircleCheck, Lock, Mail, MapPin, Star } from "lucide-react";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import Link from "next/link";
@@ -43,11 +43,10 @@ const FEATURED_LIMIT = 5;
 // Même ordre/nombre de lignes des deux côtés pour une comparaison directe : quand le
 // gratuit n'a pas la fonctionnalité, `free` est null et la ligne s'affiche cadenassée.
 const PLAN_FEATURES: { label: string; free: string | null; premium: string }[] = [
-  { label: "Produits suivis", free: "1 produit suivi", premium: "Produits suivis illimités" },
+  { label: "Extensions suivies", free: "1 extension suivie", premium: "Extensions suivies illimitées" },
   { label: "Magasins suivis", free: "1 magasin suivi", premium: "Magasins suivis illimités" },
   { label: "Notifications en temps réel", free: null, premium: "Notifications en temps réel" },
   { label: "Épingler un produit", free: null, premium: "Épingler un produit" },
-  { label: "Badge Couronne sur le profil", free: null, premium: "Badge Couronne sur le profil" },
 ];
 
 export const dynamic = "force-dynamic";
@@ -161,10 +160,7 @@ export default async function ProfilPage({
             </Avatar>
             <div className="flex min-w-0 flex-1 flex-col justify-center gap-2.5">
               <div>
-                <p className="flex items-center gap-1.5 text-base font-semibold">
-                  {displayName}
-                  {isPremium && <Crown className="size-4 fill-amber-400 text-amber-400" />}
-                </p>
+                <p className="text-base font-semibold">{displayName}</p>
                 <p className="text-muted-foreground flex items-center gap-1 text-xs">
                   <Star className="size-3 fill-current" />
                   Réputation {reputation}/100
@@ -225,10 +221,7 @@ export default async function ProfilPage({
             <Card className="border-amber-400/40 min-w-0 flex-1 basis-0 gap-3 p-3">
               <div className="flex flex-col gap-0.5">
                 <div className="flex items-center justify-between gap-2">
-                  <p className="flex items-center gap-1.5 text-sm font-semibold text-amber-400">
-                    <Crown className="size-4 fill-current" />
-                    Premium
-                  </p>
+                  <p className="text-sm font-semibold text-amber-400">Premium</p>
                   {isPremium && (
                     <Badge variant="secondary" className="text-[10px]">
                       Actuel
