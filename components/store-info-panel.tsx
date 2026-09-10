@@ -7,9 +7,11 @@ import { likeStore, reportStore } from "@/app/(tabs)/magasins/actions";
 import { ModifierMagasinDialog } from "@/components/nouveau-magasin-dialog";
 import { SignalerMagasinDialog } from "@/components/signaler-magasin-dialog";
 import { StoreVoteButtons } from "@/components/store-vote-buttons";
+import { TierBadge } from "@/components/tier-badge";
 import { Card } from "@/components/ui/card";
 import { relativeTime } from "@/lib/confidence";
 import { dayLabels, formatDayHours, weekdayOrder } from "@/lib/hours";
+import type { AuthorInfo } from "@/lib/queries";
 import type { Store } from "@/lib/types";
 import { cn, formatStoreAddress } from "@/lib/utils";
 
@@ -22,9 +24,10 @@ export function StoreInfoPanel({
   store: Store;
   onClose: () => void;
   className?: string;
-  authorPseudos: Record<string, string>;
+  authorPseudos: Record<string, AuthorInfo>;
 }) {
   const [closing, setClosing] = useState(false);
+  const author = authorPseudos[store.lastModifiedById ?? store.createdById];
 
   return (
     <Card
@@ -76,10 +79,13 @@ export function StoreInfoPanel({
         </div>
       )}
 
-      <p className="text-muted-foreground/70 text-xs">
-        {store.lastModifiedById ? "Modifié par" : "Créé par"}{" "}
-        {authorPseudos[store.lastModifiedById ?? store.createdById] ?? "Utilisateur"} ·{" "}
-        {relativeTime(store.lastModifiedById ? store.lastModifiedAt! : store.createdAt)}
+      <p className="text-muted-foreground/70 flex min-w-0 items-center gap-1 text-xs">
+        {store.lastModifiedById ? "Modifié par" : "Créé par"}
+        {author && <TierBadge tier={author.tier} />}
+        <span className="min-w-0 truncate">
+          {author?.pseudo ?? "Utilisateur"} ·{" "}
+          {relativeTime(store.lastModifiedById ? store.lastModifiedAt! : store.createdAt)}
+        </span>
       </p>
 
       <div className="mt-auto flex items-center justify-between gap-2">

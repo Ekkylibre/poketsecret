@@ -6,6 +6,7 @@ import { dismissAllNotifications, markNotificationsRead } from "@/app/(tabs)/not
 import { ClearNotificationsButton } from "@/components/clear-notifications-button";
 import { NotificationRow } from "@/components/notification-row";
 import type { DateBucket } from "@/lib/confidence";
+import type { AuthorInfo } from "@/lib/queries";
 import type { Availability, Product, Store } from "@/lib/types";
 
 export interface NotificationItem {
@@ -31,7 +32,7 @@ export function NotificationsList({
 }: {
   groups: NotificationGroup[];
   allIds: string[];
-  authorPseudos: Record<string, string>;
+  authorPseudos: Record<string, AuthorInfo>;
 }) {
   // Snapshot pris au montage : une fois affichée, la liste ne se réduit plus toute seule
   // quand le serveur revalide après un dismiss (quasi instantané sur données mock), sinon

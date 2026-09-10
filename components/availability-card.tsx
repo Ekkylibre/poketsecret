@@ -2,16 +2,19 @@
 
 import { ImageOff, MapPin, Package, Pin, ThumbsDown, ThumbsUp, TriangleAlert } from "lucide-react";
 import { type MouseEvent, useState, useTransition } from "react";
+import { toast } from "sonner";
 
 import { togglePinDisponibilite, voterDisponibilite } from "@/app/(tabs)/magasins/actions";
 import { ConfidenceBadge } from "@/components/confidence-badge";
 import { FollowProductButton } from "@/components/follow-product-button";
 import { ModifierProduitDialog } from "@/components/produit-dialog";
 import { SignalerDialog } from "@/components/signaler-dialog";
+import { TierBadge } from "@/components/tier-badge";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { decayedConfidence, relativeTime } from "@/lib/confidence";
 import { languageAbbreviations, natureStyles } from "@/lib/product-options";
+import type { AuthorInfo } from "@/lib/queries";
 import type { Availability, Product, Store } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -34,7 +37,7 @@ export function AvailabilityCard({
   isFollowed: boolean;
   /** Venue d'une notification qui pointe vers cette dispo précise. */
   highlighted?: boolean;
-  authorPseudos: Record<string, string>;
+  authorPseudos: Record<string, AuthorInfo>;
 }) {
   const confidence = decayedConfidence(availability.baseConfidence, availability.reportedAt);
   const [isPending, startTransition] = useTransition();
@@ -54,7 +57,15 @@ export function AvailabilityCard({
     setVoted(newVote);
 
     startTransition(async () => {
-      await voterDisponibilite(availability.id, previousVote, newVote);
+      const result = await voterDisponibilite(availability.id, previousVote, newVote);
+      if (result.error) {
+        if (newVote === "confirm") setConfirmations((c) => c - 1);
+        if (newVote === "dispute") setDisputes((d) => d - 1);
+        if (previousVote === "confirm") setConfirmations((c) => c + 1);
+        if (previousVote === "dispute") setDisputes((d) => d + 1);
+        setVoted(previousVote);
+        toast.error(result.error);
+      }
     });
   }
 
@@ -65,14 +76,17 @@ export function AvailabilityCard({
     setPinned(next);
     startTransition(async () => {
       const result = await togglePinDisponibilite(availability.id);
-      if (result.error) setPinned(!next);
+      if (result.error) {
+        setPinned(!next);
+        toast.error(result.error);
+      }
     });
   }
 
   const editedById = availability.lastModifiedById;
-  const authorLabel = editedById
-    ? `Modifié par ${authorPseudos[editedById] ?? "Utilisateur"}`
-    : `Créé par ${authorPseudos[availability.reportedById] ?? "Utilisateur"}`;
+  const authorId = editedById ?? availability.reportedById;
+  const author = authorPseudos[authorId];
+  const authorPrefix = editedById ? "Modifié par" : "Créé par";
   const authorTime = relativeTime(editedById ? availability.lastModifiedAt! : availability.reportedAt);
 
   return (
@@ -173,8 +187,12 @@ export function AvailabilityCard({
             marge entre les deux, seul mt-auto sur le bloc pousse l'ensemble en bas de
             la card s'il reste de la place). */}
         <div className="mt-auto flex flex-col gap-0">
-          <span className="text-muted-foreground/70 truncate text-xs">
-            {authorLabel} · {authorTime}
+          <span className="text-muted-foreground/70 flex min-w-0 items-center gap-1 text-xs">
+            {authorPrefix}
+            {author && <TierBadge tier={author.tier} />}
+            <span className="min-w-0 truncate">
+              {author?.pseudo ?? "Utilisateur"} · {authorTime}
+            </span>
           </span>
           <div className="flex flex-nowrap items-center gap-0">
             <div className="flex items-center">

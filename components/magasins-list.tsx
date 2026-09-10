@@ -29,6 +29,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { formatDayHours, getTodayWeekday } from "@/lib/hours";
 import { productTypeLabels, type SeriesExtensionPair } from "@/lib/product-options";
+import type { AuthorInfo } from "@/lib/queries";
 import type { Availability, DayHours, Product, Store } from "@/lib/types";
 import { cn, formatStoreAddress } from "@/lib/utils";
 
@@ -137,7 +138,7 @@ function StoreCard({
   isExpanded: boolean;
   onToggle: () => void;
   highlightedDispoId?: string;
-  authorPseudos: Record<string, string>;
+  authorPseudos: Record<string, AuthorInfo>;
 }) {
   const [sortField, setSortField] = useState<SortField>(null);
   const [sortDir, setSortDir] = useState<SortDir>("desc");
@@ -288,7 +289,7 @@ export function MagasinsList({
   targetStoreId?: string;
   /** Disponibilité à surligner dans la grille une fois le magasin déplié. */
   targetDispoId?: string;
-  authorPseudos: Record<string, string>;
+  authorPseudos: Record<string, AuthorInfo>;
 }) {
   const { center, radiusKm } = useLocation();
   const [query, setQuery] = useState("");

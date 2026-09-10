@@ -1,5 +1,3 @@
-import { Lock, Shield, ShieldCheck, Trophy, type LucideIcon } from "lucide-react";
-
 import { ReputationGauge } from "@/components/reputation-gauge";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -12,34 +10,15 @@ import {
   tierOf,
   type Tier,
 } from "@/lib/reputation-constants";
+import { TIER_COLORS, TIER_ICONS, TIER_LABELS } from "@/lib/tier-display";
 import { cn } from "@/lib/utils";
 
 const TIERS: Tier[] = ["nouveau", "confirme", "fiable"];
-
-const TIER_LABELS: Record<Tier, string> = {
-  nouveau: "Nouveau",
-  confirme: "Confirmé",
-  fiable: "Fiable",
-};
 
 const TIER_MIN_REPUTATION: Record<Tier, number> = {
   nouveau: 0,
   confirme: TIER_THRESHOLD_CONFIRME,
   fiable: TIER_THRESHOLD_FIABLE,
-};
-
-const TIER_ICONS: Record<Tier, LucideIcon> = {
-  nouveau: Shield,
-  confirme: ShieldCheck,
-  fiable: Trophy,
-};
-
-// Vert plutôt qu'ambre pour "Fiable" : l'ambre est déjà pris par le badge Premium plus
-// bas sur la page, les deux ne doivent pas se confondre visuellement.
-const TIER_COLORS: Record<Tier, string> = {
-  nouveau: "text-muted-foreground",
-  confirme: "text-blue-400",
-  fiable: "text-emerald-400",
 };
 
 /** "X/Y" pour le palier actuel (compteur réel), juste la limite pour les autres (le
@@ -63,13 +42,15 @@ export function ReputationCard({
   usage?: { votes: number; signalements: number; nouvellesAnnonces: number; magasins: number };
 }) {
   const tier = tierOf(reputation);
-  const Icon = TIER_ICONS[tier];
+  // Pas d'icône pour "nouveau" : aucun badge n'est affiché sur les annonces à ce palier
+  // (voir TierBadge), donc rien à montrer ici non plus pour rester cohérent.
+  const Icon = tier === "nouveau" ? null : TIER_ICONS[tier];
 
   return (
     <Card className="gap-3 p-4">
       <div className="flex items-center justify-between">
         <div className={cn("flex items-center gap-1.5 text-sm font-semibold", TIER_COLORS[tier])}>
-          <Icon className="size-4" />
+          {Icon && <Icon className="size-4" />}
           Palier {TIER_LABELS[tier]}
         </div>
         <span className="text-muted-foreground text-xs">
@@ -116,10 +97,21 @@ export function ReputationCard({
                 <tr key={t} className={cn("border-b last:border-0", isCurrent && "bg-muted")}>
                   <td className="py-1.5 pl-1">
                     <div className="flex items-center gap-1.5">
-                      {reached ? (
-                        <TierIcon className={cn("size-3.5 shrink-0", TIER_COLORS[t])} />
+                      {/* "nouveau" n'a pas de badge (voir TierBadge) : espace réservé plutôt
+                          qu'une icône, pour garder le texte des 3 lignes aligné pareil.
+                          Confirmé/Fiable gardent toujours leur icône réelle, même non
+                          atteints ou déjà dépassés (juste atténuée) : seul le palier
+                          ACTUEL est en couleur pleine, pour que l'œil aille droit dessus
+                          plutôt que sur un palier déjà dépassé. */}
+                      {t === "nouveau" ? (
+                        <span className="size-3.5 shrink-0" />
                       ) : (
-                        <Lock className="text-muted-foreground/50 size-3.5 shrink-0" />
+                        <TierIcon
+                          className={cn(
+                            "size-3.5 shrink-0",
+                            isCurrent ? TIER_COLORS[t] : "text-muted-foreground/40"
+                          )}
+                        />
                       )}
                       <span className={cn("font-medium", !reached && "text-muted-foreground/60")}>
                         {TIER_LABELS[t]}

@@ -6,10 +6,12 @@ import { type PointerEvent, useEffect, useRef, useState, useTransition } from "r
 
 import { dismissNotification } from "@/app/(tabs)/notifications/actions";
 import { ConfidenceBadge } from "@/components/confidence-badge";
+import { TierBadge } from "@/components/tier-badge";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { decayedConfidence, relativeTime } from "@/lib/confidence";
 import { languageAbbreviations, natureStyles } from "@/lib/product-options";
+import type { AuthorInfo } from "@/lib/queries";
 import type { Availability, Product, Store } from "@/lib/types";
 import { cn, formatStoreAddress } from "@/lib/utils";
 
@@ -31,7 +33,7 @@ export function NotificationRow({
   /** "Tout effacer" : fait jouer la sortie (fade + slide) après ce délai, pour un effet
    *  en cascade plutôt que toutes les notifs qui disparaissent d'un coup. */
   exitDelayMs?: number;
-  authorPseudos: Record<string, string>;
+  authorPseudos: Record<string, AuthorInfo>;
 }) {
   const router = useRouter();
   const [removed, setRemoved] = useState(false);
@@ -63,9 +65,9 @@ export function NotificationRow({
   const confidence = decayedConfidence(availability.baseConfidence, availability.reportedAt);
 
   const editedById = availability.lastModifiedById;
-  const authorLabel = editedById
-    ? `Modifié par ${authorPseudos[editedById] ?? "Utilisateur"}`
-    : `Créé par ${authorPseudos[availability.reportedById] ?? "Utilisateur"}`;
+  const authorId = editedById ?? availability.reportedById;
+  const author = authorPseudos[authorId];
+  const authorPrefix = editedById ? "Modifié par" : "Créé par";
   const authorTime = relativeTime(editedById ? availability.lastModifiedAt! : availability.reportedAt);
 
   function commitDismiss() {
@@ -232,8 +234,12 @@ export function NotificationRow({
               </span>
             </p>
             <div className="text-muted-foreground/70 mt-1 flex flex-wrap items-center gap-1.5 text-[11px]">
-              <span className="truncate">
-                {authorLabel} · {authorTime}
+              <span className="flex min-w-0 items-center gap-1">
+                {authorPrefix}
+                {author && <TierBadge tier={author.tier} />}
+                <span className="min-w-0 truncate">
+                  {author?.pseudo ?? "Utilisateur"} · {authorTime}
+                </span>
               </span>
               {/* ml-2 en plus du gap du parent : espace visiblement plus large avant le
                   cluster votes/confiance, pour le distinguer du bloc auteur/durée. */}

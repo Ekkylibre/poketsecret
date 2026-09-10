@@ -1,4 +1,5 @@
 import { sql } from "@/lib/db";
+import { tierOf, type Tier } from "@/lib/reputation-constants";
 import type { Availability, Product, Store } from "@/lib/types";
 
 /** Inclut volontairement les magasins masqués, même raison que fetchAvailabilities :
@@ -82,12 +83,21 @@ export async function fetchAvailabilities(): Promise<Availability[]> {
   }));
 }
 
+export interface AuthorInfo {
+  pseudo: string;
+  tier: Tier;
+}
+
 /** Remplace l'ancien lookup statique `mockUsers`/`getUsername` : les pseudos réels
- *  vivent dans profils_utilisateurs, pas dans un objet en dur. */
-export async function fetchAuthorPseudos(): Promise<Record<string, string>> {
-  const rows = await sql`select id, pseudo from public.profils_utilisateurs`;
-  const map: Record<string, string> = {};
-  for (const r of rows as { id: string; pseudo: string }[]) map[r.id] = r.pseudo;
+ *  vivent dans profils_utilisateurs, pas dans un objet en dur. Le palier est dérivé ici
+ *  (pas juste la réputation brute) pour que les composants d'affichage n'aient qu'à lire
+ *  `tier`, pas à réimporter tierOf partout où un pseudo d'auteur est affiché. */
+export async function fetchAuthorPseudos(): Promise<Record<string, AuthorInfo>> {
+  const rows = await sql`select id, pseudo, reputation from public.profils_utilisateurs`;
+  const map: Record<string, AuthorInfo> = {};
+  for (const r of rows as { id: string; pseudo: string; reputation: number }[]) {
+    map[r.id] = { pseudo: r.pseudo, tier: tierOf(r.reputation) };
+  }
   return map;
 }
 

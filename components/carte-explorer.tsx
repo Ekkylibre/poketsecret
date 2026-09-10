@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
+import type { AuthorInfo } from "@/lib/queries";
 import type { Store } from "@/lib/types";
 import { formatStoreAddress } from "@/lib/utils";
 
@@ -49,7 +50,7 @@ export function CarteExplorer({
   authorPseudos,
 }: {
   stores: Store[];
-  authorPseudos: Record<string, string>;
+  authorPseudos: Record<string, AuthorInfo>;
 }) {
   const { center, setCenter, radiusKm, setRadiusKm } = useLocation();
   const [viewState, setViewState] = useState({
