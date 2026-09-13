@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 
 import { requireSession } from "@/lib/auth/require-session";
 import { uploadDataUrlToBlob } from "@/lib/blob";
@@ -499,10 +500,12 @@ export async function enregistrerProduit(
       returning id
     `;
     const newDispoId = (inserted[0] as { id: string }).id;
-    // Best effort : une notification push manquée ne doit pas faire échouer la
-    // publication de l'annonce elle-même.
-    await notifyFollowersOfNewDisponibilite(newDispoId, productId, storeId, user.id, language).catch(
-      () => {}
+    // Envoyé après la réponse (after), pas attendu ici : un produit avec des milliers de
+    // suiveurs ne doit pas ralentir la publication de l'annonce elle-même. Best effort
+    // (.catch) : une notification push manquée ne doit jamais remonter d'erreur, la
+    // publication a déjà réussi à ce stade.
+    after(() =>
+      notifyFollowersOfNewDisponibilite(newDispoId, productId, storeId, user.id, language).catch(() => {})
     );
   }
 
