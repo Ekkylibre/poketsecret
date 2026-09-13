@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ageInHours, confidenceLabel, dateBucket, decayedConfidence, relativeTime, storeConfidence } from "./confidence";
 
@@ -9,6 +9,8 @@ function isoMinutesAgo(minutes: number): string {
 function isoDaysAgo(days: number): string {
   return new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
 }
+
+afterEach(() => vi.useRealTimers());
 
 describe("decayedConfidence", () => {
   it("ne décroît pas juste après le signalement", () => {
@@ -84,6 +86,13 @@ describe("relativeTime", () => {
 });
 
 describe("dateBucket", () => {
+  // Heure fixée en pleine journée : "isoMinutesAgo(5)" ne doit jamais accidentellement
+  // basculer la veille selon l'heure réelle d'exécution du test (proche de minuit sinon).
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-14T12:00:00"));
+  });
+
   it("classe aujourd'hui même signalé il y a quelques minutes", () => {
     expect(dateBucket(isoMinutesAgo(5))).toBe("Aujourd'hui");
   });
