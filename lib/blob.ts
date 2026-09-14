@@ -3,11 +3,12 @@ import { put } from "@vercel/blob";
 // N'accepte que des images (jamais du HTML/JS/SVG arbitraire) : cette valeur devient le
 // Content-Type public du fichier servi par le CDN Blob, un contenu non filtré ici serait
 // hébergé tel quel avec le type MIME de son choix. Pas de SVG (peut embarquer du script).
-const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/heic"]);
+// Exporté pour être réutilisé tel quel par blob.test.ts, pas dupliqué en dur.
+export const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/heic"]);
 // Généreux pour une photo de smartphone, mais borné : sans plafond, chaque appel décode
 // l'intégralité du base64 en mémoire avant l'upload, un vecteur d'abus (coût de stockage,
 // mémoire) facile à répéter par script.
-const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
+export const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 
 /**
  * Convertit une data URL (image capturée/recadrée côté client via canvas.toDataURL) en
