@@ -212,6 +212,9 @@ export async function changePassword(
   if (!session?.user) {
     return { error: "Connecte-toi pour changer ton mot de passe." };
   }
+  if (!session.user.emailVerified) {
+    return { error: "Confirme d'abord ton email (voir /auth/verify-email)." };
+  }
 
   const currentPassword = formData.get("currentPassword") as string;
   const newPassword = formData.get("newPassword") as string;
@@ -257,6 +260,9 @@ export async function changerPseudo(
   const { data: session } = await auth.getSession();
   if (!session?.user) {
     return { error: "Connecte-toi pour changer ton pseudo." };
+  }
+  if (!session.user.emailVerified) {
+    return { error: "Confirme d'abord ton email (voir /auth/verify-email)." };
   }
 
   const pseudo = (formData.get("pseudo") as string)?.trim();

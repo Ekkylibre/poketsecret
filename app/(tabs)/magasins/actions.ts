@@ -22,6 +22,7 @@ import {
   resolveMagasinVote,
   resolvePseudoSignalement,
   tierOf,
+  withQuotaLock,
 } from "@/lib/reputation";
 import type { AvailabilityNature, ProductType, QuantityRange } from "@/lib/types";
 
@@ -182,11 +183,21 @@ export async function signalerMagasin(
   const quotaError = await checkSignalementQuota(user.id);
   if (quotaError) return { error: quotaError };
 
-  await sql`
-    insert into public.votes_magasins (magasin_id, utilisateur_id, type, categorie)
-    values (${storeId}, ${user.id}, 'signalement', ${categorie})
-    on conflict (magasin_id, utilisateur_id) do update set type = 'signalement', categorie = ${categorie}, cree_le = now()
-  `;
+  const tierSignalement = tierOf(await getReputation(user.id));
+  await withQuotaLock(
+    user.id,
+    "signalement",
+    sql`
+      insert into public.votes_magasins (magasin_id, utilisateur_id, type, categorie)
+      select ${storeId}, ${user.id}, 'signalement', ${categorie}
+      where (
+        (select count(*) from public.signalements_disponibilites where utilisateur_id = ${user.id} and cree_le::date = current_date)
+        + (select count(*) from public.signalements_pseudos where signale_par = ${user.id} and cree_le::date = current_date)
+        + (select count(*) from public.votes_magasins where utilisateur_id = ${user.id} and type = 'signalement' and cree_le::date = current_date)
+      ) < ${DAILY_LIMITS[tierSignalement].signalements}
+      on conflict (magasin_id, utilisateur_id) do update set type = 'signalement', categorie = ${categorie}, cree_le = now()
+    `
+  );
   await refreshMagasinCompteurs(storeId);
   await resolveMagasinVote(storeId);
 
@@ -446,12 +457,29 @@ export async function enregistrerProduit(
     // statut) plutôt que de garder un badge "confirmée" collé à une info qui vient de
     // changer.
     await resetDisponibiliteResolution(availabilityId);
-    await sql`
-      update public.disponibilites
-      set prix_centimes = ${priceCents ?? null}, quantite = ${quantity}, nature = ${nature},
-          modifie_par = ${user.id}, modifie_le = now()
-      where id = ${availabilityId}
-    `;
+    const editTier = tierOf(await getReputation(user.id));
+    const updated = await withQuotaLock<{ id: string }>(
+      user.id,
+      "edits-autres",
+      sql`
+        update public.disponibilites
+        set prix_centimes = ${priceCents ?? null}, quantite = ${quantity}, nature = ${nature},
+            modifie_par = ${user.id}, modifie_le = now()
+        where id = ${availabilityId}
+          and (
+            signale_par = ${user.id}
+            or (modifie_par = ${user.id} and modifie_le::date = current_date)
+            or (
+              select count(*) from public.disponibilites
+              where modifie_par = ${user.id} and signale_par != ${user.id} and modifie_le::date = current_date
+            ) < ${DAILY_LIMITS[editTier].editsAutres}
+          )
+        returning id
+      `
+    );
+    if (updated.length === 0) {
+      return { error: "Tu as atteint ta limite de modifications d'annonces d'autrui pour aujourd'hui." };
+    }
     await resolveDisponibiliteVote(availabilityId);
   } else {
     const series = (formData.get("series") as string)?.trim();
@@ -494,13 +522,22 @@ export async function enregistrerProduit(
       return { error: err instanceof Error ? err.message : "Impossible d'enregistrer la photo, réessaie." };
     }
 
-    const inserted = await sql`
-      insert into public.disponibilites
-        (produit_id, magasin_id, signale_par, prix_centimes, langue, quantite, nature, photo_url, confiance_base)
-      values
-        (${productId}, ${storeId}, ${user.id}, ${priceCents ?? null}, ${language}, ${quantity}, ${nature}, ${photoUrl}, ${reputation})
-      returning id
-    `;
+    const inserted = await withQuotaLock<{ id: string }>(
+      user.id,
+      "nouvelle-annonce",
+      sql`
+        insert into public.disponibilites
+          (produit_id, magasin_id, signale_par, prix_centimes, langue, quantite, nature, photo_url, confiance_base)
+        select ${productId}, ${storeId}, ${user.id}, ${priceCents ?? null}, ${language}, ${quantity}, ${nature}, ${photoUrl}, ${reputation}
+        where (
+          select count(*) from public.disponibilites where signale_par = ${user.id} and signale_le::date = current_date
+        ) < ${DAILY_LIMITS[tier].nouvellesAnnonces}
+        returning id
+      `
+    );
+    if (inserted.length === 0) {
+      return { error: "Tu as atteint ta limite de nouvelles annonces pour aujourd'hui." };
+    }
     const newDispoId = (inserted[0] as { id: string }).id;
     // Envoyé après la réponse (after), pas attendu ici : un produit avec des milliers de
     // suiveurs ne doit pas ralentir la publication de l'annonce elle-même. Best effort
@@ -543,12 +580,25 @@ export async function voterDisponibilite(
     const quotaError = await checkVoteQuota(user.id);
     if (quotaError) return { error: quotaError };
 
+    const tierVote = tierOf(await getReputation(user.id));
     const type = newVote === "confirm" ? "confirmation" : "contestation";
-    await sql`
-      insert into public.votes_disponibilites (disponibilite_id, utilisateur_id, type)
-      values (${availabilityId}, ${user.id}, ${type})
-      on conflict (disponibilite_id, utilisateur_id) do update set type = ${type}, cree_le = now()
-    `;
+    const votedRows = await withQuotaLock<{ disponibilite_id: string }>(
+      user.id,
+      "vote",
+      sql`
+        insert into public.votes_disponibilites (disponibilite_id, utilisateur_id, type)
+        select ${availabilityId}, ${user.id}, ${type}
+        where (
+          (select count(*) from public.votes_disponibilites where utilisateur_id = ${user.id} and cree_le::date = current_date)
+          + (select count(*) from public.votes_magasins where utilisateur_id = ${user.id} and type = 'jaime' and cree_le::date = current_date)
+        ) < ${DAILY_LIMITS[tierVote].votes}
+        on conflict (disponibilite_id, utilisateur_id) do update set type = excluded.type, cree_le = now()
+        returning disponibilite_id
+      `
+    );
+    if (votedRows.length === 0) {
+      return { error: "Tu as atteint ta limite de votes pour aujourd'hui." };
+    }
     if (newVote === "confirm") {
       await sql`update public.disponibilites set derniere_confirmation_le = now() where id = ${availabilityId}`;
     }
@@ -609,14 +659,28 @@ export async function signalerDisponibilite(
   const quotaError = await checkSignalementQuota(user.id);
   if (quotaError) return { error: quotaError };
 
-  const inserted = await sql`
-    insert into public.signalements_disponibilites (disponibilite_id, utilisateur_id, motif, commentaire)
-    values (${availabilityId}, ${user.id}, ${motif}, ${comment || null})
-    on conflict (disponibilite_id, utilisateur_id) do nothing
-    returning id
-  `;
+  const tierSignalDispo = tierOf(await getReputation(user.id));
+  const inserted = await withQuotaLock<{ id: string }>(
+    user.id,
+    "signalement",
+    sql`
+      insert into public.signalements_disponibilites (disponibilite_id, utilisateur_id, motif, commentaire)
+      select ${availabilityId}, ${user.id}, ${motif}, ${comment || null}
+      where (
+        (select count(*) from public.signalements_disponibilites where utilisateur_id = ${user.id} and cree_le::date = current_date)
+        + (select count(*) from public.signalements_pseudos where signale_par = ${user.id} and cree_le::date = current_date)
+        + (select count(*) from public.votes_magasins where utilisateur_id = ${user.id} and type = 'signalement' and cree_le::date = current_date)
+      ) < ${DAILY_LIMITS[tierSignalDispo].signalements}
+      on conflict (disponibilite_id, utilisateur_id) do nothing
+      returning id
+    `
+  );
   if (inserted.length === 0) {
-    return { error: "Tu as déjà signalé cette annonce." };
+    const already = await sql`
+      select 1 from public.signalements_disponibilites where disponibilite_id = ${availabilityId} and utilisateur_id = ${user.id} limit 1
+    `;
+    if (already.length > 0) return { error: "Tu as déjà signalé cette annonce." };
+    return { error: "Tu as atteint ta limite de signalements pour aujourd'hui." };
   }
 
   await refreshDisponibiliteCompteurs(availabilityId);
@@ -659,14 +723,31 @@ export async function signalerPseudo(
   const quotaError = await checkSignalementQuota(user.id);
   if (quotaError) return { error: quotaError };
 
-  const inserted = await sql`
-    insert into public.signalements_pseudos (utilisateur_id, signale_par)
-    values (${targetUserId}, ${user.id})
-    on conflict (utilisateur_id, signale_par) do nothing
-    returning id
-  `;
+  const tier = tierOf(await getReputation(user.id));
+  const inserted = await withQuotaLock<{ id: string }>(
+    user.id,
+    "signalement",
+    sql`
+      insert into public.signalements_pseudos (utilisateur_id, signale_par)
+      select ${targetUserId}, ${user.id}
+      where (
+        (select count(*) from public.signalements_disponibilites where utilisateur_id = ${user.id} and cree_le::date = current_date)
+        + (select count(*) from public.signalements_pseudos where signale_par = ${user.id} and cree_le::date = current_date)
+        + (select count(*) from public.votes_magasins where utilisateur_id = ${user.id} and type = 'signalement' and cree_le::date = current_date)
+      ) < ${DAILY_LIMITS[tier].signalements}
+      on conflict (utilisateur_id, signale_par) do nothing
+      returning id
+    `
+  );
   if (inserted.length === 0) {
-    return { error: "Tu as déjà signalé ce pseudo." };
+    // Requête sous verrou pour trancher (sécurité), mais message distinct pour
+    // l'utilisateur : déjà signalé (pas grave) vs quota atteint (revérifié sous verrou,
+    // peut arriver même si le contrôle rapide ci-dessus l'avait laissé passer).
+    const already = await sql`
+      select 1 from public.signalements_pseudos where utilisateur_id = ${targetUserId} and signale_par = ${user.id} limit 1
+    `;
+    if (already.length > 0) return { error: "Tu as déjà signalé ce pseudo." };
+    return { error: "Tu as atteint ta limite de signalements pour aujourd'hui." };
   }
 
   await resolvePseudoSignalement(targetUserId);

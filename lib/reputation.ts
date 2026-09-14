@@ -14,6 +14,33 @@ import {
 // contient que ce qui touche la base (lib/db), donc jamais safe à importer côté client.
 export * from "@/lib/reputation-constants";
 
+/**
+ * Ferme une race condition trouvée lors d'un audit de sécurité : sans verrou, plusieurs
+ * requêtes concurrentes d'un même utilisateur peuvent chacune lire le compteur du jour
+ * AVANT qu'aucune n'ait écrit, et donc toutes passer un quota censé n'autoriser qu'UNE
+ * écriture (reproduit en conditions réelles : 2 signalements passés sur une limite de 1
+ * en envoyant 4 requêtes en parallèle). `pg_advisory_xact_lock` (portée transaction, pas
+ * besoin de le relâcher explicitement) sérialise les tentatives d'un même
+ * (utilisateur, clé de quota) : la suivante ne peut lire le compte qu'une fois la
+ * précédente réellement commitée.
+ *
+ * `insertQuery` doit revérifier le quota dans sa PROPRE clause WHERE (ex. `where (select
+ * count(*) ...) < limite`) : c'est la requête protégée par le verrou qui doit trancher,
+ * pas un contrôle fait par du code séparé avant l'appel (ce contrôle-là reste utile
+ * comme filtre rapide/message clair, mais jamais comme seule protection).
+ */
+export async function withQuotaLock<T = Record<string, unknown>>(
+  userId: string,
+  quotaKey: string,
+  insertQuery: ReturnType<typeof sql>
+): Promise<T[]> {
+  const results = await sql.transaction([
+    sql`select pg_advisory_xact_lock(hashtext(${userId} || ':' || ${quotaKey}))`,
+    insertQuery,
+  ]);
+  return results[1] as T[];
+}
+
 /** Applique un ajustement de réputation et journalise pourquoi, dans une seule
  *  transaction avec la mise à jour de statut qui l'a déclenché (voir appelants). */
 async function applyReputationDelta(
@@ -293,11 +320,17 @@ export async function resolvePseudoSignalement(utilisateurId: string) {
 /** Nombre de votes/signalements/magasins déjà posés aujourd'hui (votes) ou cette
  *  semaine (magasins) par un utilisateur, source unique de vérité pour les paliers,
  *  pas de compteur séparé à garder synchronisé. */
+// "j'aime" un magasin est vote-like (adhésion positive) : compté avec les
+// confirm/dispute sur les votes. "signalement" (dispo, magasin, pseudo) est un seul et
+// même axe "je signale un problème" ailleurs, votes_magasins ne doit donc en compter
+// qu'un type ici, l'autre dans countSignalementsToday (bug trouvé lors d'un audit de
+// sécurité : signalerMagasin vérifiait le quota signalements avant d'insérer une ligne
+// qui ne comptait en réalité que dans CE compteur-ci, jamais dans l'autre).
 export async function countVotesToday(utilisateurId: string): Promise<number> {
   const rows = await sql`
     select
       (select count(*) from public.votes_disponibilites where utilisateur_id = ${utilisateurId} and cree_le::date = current_date)
-      + (select count(*) from public.votes_magasins where utilisateur_id = ${utilisateurId} and cree_le::date = current_date)
+      + (select count(*) from public.votes_magasins where utilisateur_id = ${utilisateurId} and type = 'jaime' and cree_le::date = current_date)
       as total
   `;
   return Number((rows[0] as { total: number }).total);
@@ -308,6 +341,7 @@ export async function countSignalementsToday(utilisateurId: string): Promise<num
     select
       (select count(*) from public.signalements_disponibilites where utilisateur_id = ${utilisateurId} and cree_le::date = current_date)
       + (select count(*) from public.signalements_pseudos where signale_par = ${utilisateurId} and cree_le::date = current_date)
+      + (select count(*) from public.votes_magasins where utilisateur_id = ${utilisateurId} and type = 'signalement' and cree_le::date = current_date)
       as total
   `;
   return Number((rows[0] as { total: number }).total);

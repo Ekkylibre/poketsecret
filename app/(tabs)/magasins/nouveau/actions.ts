@@ -13,6 +13,7 @@ import {
   MAGASIN_PAR_SEMAINE,
   REPUTATION_START,
   tierOf,
+  withQuotaLock,
 } from "@/lib/reputation";
 import { PHONE_PATTERN } from "@/lib/utils";
 
@@ -61,13 +62,23 @@ export async function creerMagasin(
   const latValue = Number.isFinite(lat) && lat !== 0 ? lat : 0;
   const lngValue = Number.isFinite(lng) && lng !== 0 ? lng : 0;
 
-  await sql`
-    insert into public.magasins (nom, adresse, code_postal, ville, latitude, longitude, telephone, horaires, cree_par)
-    values (
-      ${name}, ${address}, ${postalCode || null}, ${city}, ${latValue}, ${lngValue},
-      ${phone || null}, ${hasHours ? JSON.stringify(hours) : null}::jsonb, ${user.id}
-    )
-  `;
+  const inserted = await withQuotaLock<{ id: string }>(
+    user.id,
+    "nouveau-magasin",
+    sql`
+      insert into public.magasins (nom, adresse, code_postal, ville, latitude, longitude, telephone, horaires, cree_par)
+      select
+        ${name}, ${address}, ${postalCode || null}, ${city}, ${latValue}, ${lngValue},
+        ${phone || null}, ${hasHours ? JSON.stringify(hours) : null}::jsonb, ${user.id}
+      where (
+        select count(*) from public.magasins where cree_par = ${user.id} and cree_le >= now() - interval '7 days'
+      ) < ${MAGASIN_PAR_SEMAINE[tier]}
+      returning id
+    `
+  );
+  if (inserted.length === 0) {
+    return { error: "Tu as atteint ta limite d'ajout de magasins pour cette semaine." };
+  }
 
   revalidatePath("/");
   revalidatePath("/carte");
@@ -125,23 +136,36 @@ export async function modifierMagasin(
   const hasHours = Object.keys(hours).length > 0;
   const hasCoords = Number.isFinite(lat) && lat !== 0 && Number.isFinite(lng) && lng !== 0;
 
-  const rows = await sql`
-    update public.magasins
-    set nom = ${name},
-        adresse = ${address},
-        code_postal = ${postalCode || null},
-        ville = ${city},
-        telephone = ${phone || null},
-        horaires = ${hasHours ? JSON.stringify(hours) : null}::jsonb,
-        latitude = case when ${hasCoords} then ${lat} else latitude end,
-        longitude = case when ${hasCoords} then ${lng} else longitude end,
-        modifie_par = ${user.id},
-        modifie_le = now()
-    where id = ${storeId}
-    returning id
-  `;
+  const editStoreTier = tierOf(await getReputation(user.id));
+  const rows = await withQuotaLock<{ id: string }>(
+    user.id,
+    "edits-magasin-autres",
+    sql`
+      update public.magasins
+      set nom = ${name},
+          adresse = ${address},
+          code_postal = ${postalCode || null},
+          ville = ${city},
+          telephone = ${phone || null},
+          horaires = ${hasHours ? JSON.stringify(hours) : null}::jsonb,
+          latitude = case when ${hasCoords} then ${lat} else latitude end,
+          longitude = case when ${hasCoords} then ${lng} else longitude end,
+          modifie_par = ${user.id},
+          modifie_le = now()
+      where id = ${storeId}
+        and (
+          cree_par = ${user.id}
+          or (modifie_par = ${user.id} and modifie_le::date = current_date)
+          or (
+            select count(*) from public.magasins
+            where modifie_par = ${user.id} and cree_par != ${user.id} and modifie_le::date = current_date
+          ) < ${DAILY_LIMITS[editStoreTier].editsAutres}
+        )
+      returning id
+    `
+  );
   if (rows.length === 0) {
-    return { error: "Magasin introuvable." };
+    return { error: "Magasin introuvable, ou tu as atteint ta limite de modifications d'autrui." };
   }
 
   revalidatePath("/");
