@@ -1,6 +1,7 @@
 "use client";
 
-import { MapPin, Phone, TriangleAlert, X } from "lucide-react";
+import { MapPin, Package, Phone, TriangleAlert, X } from "lucide-react";
+import Link from "next/link";
 import { useState } from "react";
 
 import { likeStore, reportStore } from "@/app/(tabs)/magasins/actions";
@@ -9,6 +10,7 @@ import { SignalerMagasinDialog } from "@/components/signaler-magasin-dialog";
 import { SignalerPseudoDialog } from "@/components/signaler-pseudo-dialog";
 import { StoreVoteButtons } from "@/components/store-vote-buttons";
 import { TierBadge } from "@/components/tier-badge";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { relativeTime } from "@/lib/confidence";
 import { dayLabels, formatDayHours, weekdayOrder } from "@/lib/hours";
@@ -92,6 +94,18 @@ export function StoreInfoPanel({
         </span>
         {author && !author.isAdmin && <SignalerPseudoDialog targetUserId={authorId} />}
       </p>
+
+      {/* Depuis la carte, on sait déjà OÙ est le magasin ; ce bouton répond à la
+          question suivante "qu'est-ce qu'il y a dedans" en renvoyant vers la liste, qui
+          seule affiche prix/photos/stock. Réutilise le même paramètre ?store= que les
+          notifications (voir notification-row.tsx, lib/push.ts) : magasins-list.tsx
+          scroll et déplie déjà automatiquement le bon magasin à partir de ce paramètre. */}
+      <Button asChild variant="outline" className="w-full">
+        <Link href={`/?store=${store.id}`}>
+          <Package className="size-4" />
+          Voir les produits
+        </Link>
+      </Button>
 
       <div className="mt-auto flex items-center justify-between gap-2">
         <StoreVoteButtons
