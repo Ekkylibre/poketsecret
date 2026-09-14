@@ -19,6 +19,8 @@
     "@vercel/blob": "^2.8.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "french-badwords-list": "^1.0.7",
+    "leo-profanity": "^1.9.0",
     "libphonenumber-js": "^1.13.12",
     "lucide-react": "^1.40.0",
     "mapbox-gl": "^3.30.0",

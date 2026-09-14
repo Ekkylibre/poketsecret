@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
+import { PSEUDO_MAX_LENGTH } from "@/lib/pseudo-validation";
 
 function VerifyOtpStep({ email, pseudo }: { email: string; pseudo: string }) {
   const [state, formAction, isPending] = useActionState(verifySignUpOtp, null);
@@ -111,7 +112,8 @@ export default function SignUpPage() {
                   type="text"
                   autoComplete="nickname"
                   required
-                  placeholder="PoketSecret"
+                  maxLength={PSEUDO_MAX_LENGTH}
+                  placeholder="Dresseur92"
                 />
               </div>
 

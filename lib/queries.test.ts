@@ -186,8 +186,8 @@ describe("fetchAuthorPseudos", () => {
     ]);
 
     expect(await fetchAuthorPseudos()).toEqual({
-      u1: { pseudo: "Sacha", tier: "fiable" },
-      u2: { pseudo: "Ondine", tier: "nouveau" },
+      u1: { pseudo: "Sacha", tier: "fiable", isAdmin: false },
+      u2: { pseudo: "Ondine", tier: "nouveau", isAdmin: false },
     });
   });
 

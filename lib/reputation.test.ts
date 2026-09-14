@@ -133,7 +133,7 @@ describe("resolveDisponibiliteVote", () => {
   it("masque une dispo sur signalements seuls, même sans changement de résolution", async () => {
     mockDispoQueries(
       { resolution: null, masquee: false, auteur_id: AUTEUR_ID, score_dispute: 0, votants_dispute: 0 },
-      [{ motif: "inapproprie", score: -2, votants: 2 }]
+      [{ motif: "inapproprie", score: 2, votants: 2 }]
     );
 
     await resolveDisponibiliteVote(DISPO_ID);
@@ -168,7 +168,7 @@ describe("resolveMagasinVote", () => {
   }
 
   it("masque le magasin quand le seuil de signalement est atteint", async () => {
-    mockMagasinQueries({ auteur_id: "createur-1", masque: false }, { score: -5, votants: 5 });
+    mockMagasinQueries({ auteur_id: "createur-1", masque: false }, { score: 5, votants: 5 });
 
     await resolveMagasinVote(MAGASIN_ID);
 
@@ -180,7 +180,7 @@ describe("resolveMagasinVote", () => {
   });
 
   it("ne masque pas si le nombre de votants est insuffisant, même avec un mauvais score", async () => {
-    mockMagasinQueries({ auteur_id: "createur-1", masque: false }, { score: -10, votants: 2 });
+    mockMagasinQueries({ auteur_id: "createur-1", masque: false }, { score: 8, votants: 2 });
 
     await resolveMagasinVote(MAGASIN_ID);
 

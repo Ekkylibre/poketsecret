@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { after } from "next/server";
 
+import { isAdminUser } from "@/lib/admin";
 import { requireSession } from "@/lib/auth/require-session";
 import { uploadDataUrlToBlob } from "@/lib/blob";
 import { sql } from "@/lib/db";
@@ -19,6 +20,7 @@ import {
   resetDisponibiliteResolution,
   resolveDisponibiliteVote,
   resolveMagasinVote,
+  resolvePseudoSignalement,
   tierOf,
 } from "@/lib/reputation";
 import type { AvailabilityNature, ProductType, QuantityRange } from "@/lib/types";
@@ -621,5 +623,55 @@ export async function signalerDisponibilite(
   await resolveDisponibiliteVote(availabilityId);
 
   revalidatePath("/magasins");
+  return { success: true };
+}
+
+export interface SignalementPseudoFormState {
+  error?: string;
+  success?: boolean;
+}
+
+/** Pas de "reason" : contrairement à une annonce ou un magasin, un pseudo n'a qu'un seul
+ *  axe de signalement (le compte le juge inapproprié), pas de motif à choisir. Les deux
+ *  derniers paramètres sont inutilisés mais requis par la signature attendue par
+ *  useActionState (prevState, formData) une fois targetUserId lié via .bind(). */
+export async function signalerPseudo(
+  targetUserId: string,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  _prevState: SignalementPseudoFormState | null,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  _formData: FormData
+): Promise<SignalementPseudoFormState> {
+  const user = await requireSession();
+  await ensureProfil(user.id, user.name);
+
+  if (targetUserId === user.id) {
+    return { error: "Tu ne peux pas signaler ton propre pseudo." };
+  }
+
+  // Le bouton est déjà caché sur le compte admin côté UI (voir TierBadge/isAdmin dans
+  // availability-card.tsx etc.), mais ça ne protège rien par soi-même : n'importe quelle
+  // requête directe vers cette action pourrait contourner un bouton simplement masqué.
+  if (isAdminUser(targetUserId)) {
+    return { error: "Ce compte ne peut pas être signalé." };
+  }
+
+  const quotaError = await checkSignalementQuota(user.id);
+  if (quotaError) return { error: quotaError };
+
+  const inserted = await sql`
+    insert into public.signalements_pseudos (utilisateur_id, signale_par)
+    values (${targetUserId}, ${user.id})
+    on conflict (utilisateur_id, signale_par) do nothing
+    returning id
+  `;
+  if (inserted.length === 0) {
+    return { error: "Tu as déjà signalé ce pseudo." };
+  }
+
+  await resolvePseudoSignalement(targetUserId);
+
+  revalidatePath("/magasins");
+  revalidatePath("/notifications");
   return { success: true };
 }

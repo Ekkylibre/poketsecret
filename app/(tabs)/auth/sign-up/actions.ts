@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 
 import { auth } from "@/lib/auth/server";
 import { sql } from "@/lib/db";
+import { validatePseudo } from "@/lib/pseudo-validation";
 
 export interface SignUpState {
   error?: string;
@@ -22,6 +23,13 @@ export async function signUpWithEmail(
 
   if (!pseudo || !email || !password) {
     return { error: "Merci de remplir tous les champs." };
+  }
+
+  // Avant de créer le compte (auth.signUp.email utilise pseudo comme "name" du
+  // compte) : un pseudo refusé ne doit jamais aboutir à un compte créé sous ce nom.
+  const pseudoError = validatePseudo(pseudo);
+  if (pseudoError) {
+    return { error: pseudoError };
   }
 
   const { error: signUpError } = await auth.signUp.email({
@@ -57,6 +65,14 @@ export async function verifySignUpOtp(
 
   if (!email || !pseudo || !otp) {
     return { error: "Merci de saisir le code reçu par email." };
+  }
+
+  // Revalidation obligatoire, pas juste défensive : "pseudo" arrive ici via un champ
+  // caché du formulaire, un client peut le modifier librement avant de soumettre l'OTP
+  // et contourner entièrement le contrôle fait dans signUpWithEmail.
+  const pseudoError = validatePseudo(pseudo);
+  if (pseudoError) {
+    return { error: pseudoError };
   }
 
   const { error } = await auth.emailOtp.verifyEmail({ email, otp });

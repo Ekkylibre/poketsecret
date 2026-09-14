@@ -6,6 +6,7 @@ import { useState } from "react";
 import { likeStore, reportStore } from "@/app/(tabs)/magasins/actions";
 import { ModifierMagasinDialog } from "@/components/nouveau-magasin-dialog";
 import { SignalerMagasinDialog } from "@/components/signaler-magasin-dialog";
+import { SignalerPseudoDialog } from "@/components/signaler-pseudo-dialog";
 import { StoreVoteButtons } from "@/components/store-vote-buttons";
 import { TierBadge } from "@/components/tier-badge";
 import { Card } from "@/components/ui/card";
@@ -27,7 +28,8 @@ export function StoreInfoPanel({
   authorPseudos: Record<string, AuthorInfo>;
 }) {
   const [closing, setClosing] = useState(false);
-  const author = authorPseudos[store.lastModifiedById ?? store.createdById];
+  const authorId = store.lastModifiedById ?? store.createdById;
+  const author = authorPseudos[authorId];
 
   return (
     <Card
@@ -81,11 +83,12 @@ export function StoreInfoPanel({
 
       <p className="text-muted-foreground/70 flex min-w-0 items-center gap-1 text-xs">
         {store.lastModifiedById ? "Modifié par" : "Créé par"}
-        {author && <TierBadge tier={author.tier} />}
+        {author && <TierBadge tier={author.tier} isAdmin={author.isAdmin} />}
         <span className="min-w-0 truncate">
           {author?.pseudo ?? "Utilisateur"} ·{" "}
           {relativeTime(store.lastModifiedById ? store.lastModifiedAt! : store.createdAt)}
         </span>
+        {author && !author.isAdmin && <SignalerPseudoDialog targetUserId={authorId} />}
       </p>
 
       <div className="mt-auto flex items-center justify-between gap-2">

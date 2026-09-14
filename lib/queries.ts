@@ -1,3 +1,4 @@
+import { isAdminUser } from "@/lib/admin";
 import { sql } from "@/lib/db";
 import { tierOf, type Tier } from "@/lib/reputation-constants";
 import type { Availability, Product, Store } from "@/lib/types";
@@ -86,17 +87,30 @@ export async function fetchAvailabilities(): Promise<Availability[]> {
 export interface AuthorInfo {
   pseudo: string;
   tier: Tier;
+  isAdmin: boolean;
 }
 
 /** Remplace l'ancien lookup statique `mockUsers`/`getUsername` : les pseudos réels
  *  vivent dans profils_utilisateurs, pas dans un objet en dur. Le palier est dérivé ici
  *  (pas juste la réputation brute) pour que les composants d'affichage n'aient qu'à lire
- *  `tier`, pas à réimporter tierOf partout où un pseudo d'auteur est affiché. */
+ *  `tier`, pas à réimporter tierOf partout où un pseudo d'auteur est affiché. Un pseudo
+ *  signalé par la communauté (voir resolvePseudoSignalement) est remplacé ici, à la
+ *  source, par un texte neutre : aucun composant d'affichage n'a besoin de connaître
+ *  `pseudo_signale`, il ne voit jamais le vrai pseudo une fois le seuil atteint. */
 export async function fetchAuthorPseudos(): Promise<Record<string, AuthorInfo>> {
-  const rows = await sql`select id, pseudo, reputation from public.profils_utilisateurs`;
+  const rows = await sql`select id, pseudo, reputation, pseudo_signale from public.profils_utilisateurs`;
   const map: Record<string, AuthorInfo> = {};
-  for (const r of rows as { id: string; pseudo: string; reputation: number }[]) {
-    map[r.id] = { pseudo: r.pseudo, tier: tierOf(r.reputation) };
+  for (const r of rows as {
+    id: string;
+    pseudo: string;
+    reputation: number;
+    pseudo_signale: boolean;
+  }[]) {
+    map[r.id] = {
+      pseudo: r.pseudo_signale ? "Utilisateur signalé" : r.pseudo,
+      tier: tierOf(r.reputation),
+      isAdmin: isAdminUser(r.id),
+    };
   }
   return map;
 }

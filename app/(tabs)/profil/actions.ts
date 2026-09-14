@@ -9,6 +9,7 @@ import { auth } from "@/lib/auth/server";
 import { sql } from "@/lib/db";
 import { mockCurrentUser } from "@/lib/mock-data";
 import { ensureProfil } from "@/lib/profil";
+import { PSEUDO_CHANGE_COOLDOWN_JOURS, validatePseudo } from "@/lib/pseudo-validation";
 import { PREMIUM_PRICE_EUR_CENTS, PREMIUM_PRICE_ID, stripe } from "@/lib/stripe";
 
 export async function signOut() {
@@ -235,6 +236,79 @@ export async function changePassword(
   if (error) {
     return { error: error.message || "Impossible de changer le mot de passe." };
   }
+  return { success: true };
+}
+
+export interface ChangerPseudoState {
+  error?: string;
+  success?: boolean;
+}
+
+/** Seul moyen de lever `pseudo_signale` (voir resolvePseudoSignalement) : sans ça, un
+ *  compte signalé par la communauté restait bloqué en "Utilisateur signalé" pour
+ *  toujours. On exige un pseudo réellement différent de l'actuel, sinon un compte
+ *  signalé pourrait resoumettre exactement le même pseudo et lever le signalement sans
+ *  rien changer de vrai (le filtre automatique ne l'aurait de toute façon pas rattrapé
+ *  une seconde fois, vu qu'il ne l'a pas fait la première). */
+export async function changerPseudo(
+  _prevState: ChangerPseudoState | null,
+  formData: FormData
+): Promise<ChangerPseudoState> {
+  const { data: session } = await auth.getSession();
+  if (!session?.user) {
+    return { error: "Connecte-toi pour changer ton pseudo." };
+  }
+
+  const pseudo = (formData.get("pseudo") as string)?.trim();
+  if (!pseudo) {
+    return { error: "Merci de saisir un pseudo." };
+  }
+
+  const pseudoError = validatePseudo(pseudo);
+  if (pseudoError) {
+    return { error: pseudoError };
+  }
+
+  await ensureProfil(session.user.id, session.user.name);
+
+  const rows = await sql`
+    select pseudo, pseudo_signale, pseudo_modifie_le
+    from public.profils_utilisateurs
+    where id = ${session.user.id}
+  `;
+  const current = rows[0] as
+    | { pseudo: string; pseudo_signale: boolean; pseudo_modifie_le: Date | null }
+    | undefined;
+  if (current?.pseudo === pseudo) {
+    return { error: "C'est déjà ton pseudo actuel." };
+  }
+
+  // Le cooldown ne s'applique pas à un compte signalé qui corrige : voir le commentaire
+  // sur PSEUDO_CHANGE_COOLDOWN_JOURS.
+  if (!current?.pseudo_signale && current?.pseudo_modifie_le) {
+    const joursDepuis = (Date.now() - current.pseudo_modifie_le.getTime()) / (1000 * 60 * 60 * 24);
+    if (joursDepuis < PSEUDO_CHANGE_COOLDOWN_JOURS) {
+      const joursRestants = Math.ceil(PSEUDO_CHANGE_COOLDOWN_JOURS - joursDepuis);
+      return {
+        error: `Tu pourras de nouveau changer de pseudo dans ${joursRestants} jour${joursRestants > 1 ? "s" : ""}.`,
+      };
+    }
+  }
+
+  try {
+    await sql`
+      update public.profils_utilisateurs
+      set pseudo = ${pseudo}, pseudo_signale = false, pseudo_modifie_le = now(), modifie_le = now()
+      where id = ${session.user.id}
+    `;
+  } catch {
+    return { error: "Ce pseudo est déjà pris." };
+  }
+
+  revalidatePath("/profil");
+  revalidatePath("/magasins");
+  revalidatePath("/notifications");
+  revalidatePath("/");
   return { success: true };
 }
 

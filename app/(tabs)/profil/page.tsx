@@ -1,4 +1,4 @@
-import { CircleCheck, Lock, Mail, MapPin, Star } from "lucide-react";
+import { CircleCheck, Lock, Mail, MapPin, Star, TriangleAlert } from "lucide-react";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import Link from "next/link";
@@ -11,6 +11,7 @@ import { DevSimulatePremiumToggle } from "@/components/dev-simulate-premium-togg
 import { FollowProductButton } from "@/components/follow-product-button";
 import { FollowStoreButton } from "@/components/follow-store-button";
 import { HelpCard } from "@/components/help-card";
+import { ModifierPseudoDialog } from "@/components/modifier-pseudo-dialog";
 import { NotificationNudgeBubble } from "@/components/notification-nudge-bubble";
 import { NotificationPermissionToggle } from "@/components/notification-permission-toggle";
 import { ReputationCard } from "@/components/reputation-card";
@@ -86,13 +87,15 @@ export default async function ProfilPage({
     }
   }
 
-  let profil: { pseudo: string; reputation: number; est_premium: boolean } | undefined;
+  let profil:
+    | { pseudo: string; reputation: number; est_premium: boolean; pseudo_signale: boolean }
+    | undefined;
   if (session?.user) {
     // Seule l'inscription email/mot de passe crée cette ligne, un compte Google n'en a
     // jamais sans ça, donc reputation/premium/etc. resteraient bloqués sur le mock.
     await ensureProfil(session.user.id, session.user.name);
     const rows = await sql`
-      select pseudo, reputation, est_premium
+      select pseudo, reputation, est_premium, pseudo_signale
       from public.profils_utilisateurs
       where id = ${session.user.id}
     `;
@@ -148,6 +151,17 @@ export default async function ProfilPage({
           </div>
         )}
 
+        {profil?.pseudo_signale && (
+          <div className="bg-destructive/15 text-destructive flex items-start gap-2 rounded-md px-3 py-2">
+            <TriangleAlert className="mt-0.5 size-4 shrink-0" />
+            <p className="text-xs">
+              Ton pseudo a été signalé par la communauté : les autres utilisateurs voient
+              &quot;Utilisateur signalé&quot; à la place, sur toutes tes annonces et magasins.
+              Choisis-en un nouveau (crayon ci-dessous) pour lever cette restriction.
+            </p>
+          </div>
+        )}
+
         <Card className="gap-0 p-0">
           {/* Photo à gauche, dimensionnée pour courir jusqu'à la ligne notifications ;
               le reste (nom, réputation, email, notifications) se décale dans une colonne
@@ -160,7 +174,10 @@ export default async function ProfilPage({
             </Avatar>
             <div className="flex min-w-0 flex-1 flex-col justify-center gap-2.5">
               <div>
-                <p className="text-base font-semibold">{displayName}</p>
+                <div className="flex items-center gap-1">
+                  <p className="min-w-0 truncate text-base font-semibold">{displayName}</p>
+                  {session?.user && <ModifierPseudoDialog currentPseudo={displayName} />}
+                </div>
                 <p className="text-muted-foreground flex items-center gap-1 text-xs">
                   <Star className="size-3 fill-current" />
                   Réputation {reputation}/100

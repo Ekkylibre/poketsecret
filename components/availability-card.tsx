@@ -9,6 +9,7 @@ import { ConfidenceBadge } from "@/components/confidence-badge";
 import { FollowProductButton } from "@/components/follow-product-button";
 import { ModifierProduitDialog } from "@/components/produit-dialog";
 import { SignalerDialog } from "@/components/signaler-dialog";
+import { SignalerPseudoDialog } from "@/components/signaler-pseudo-dialog";
 import { TierBadge } from "@/components/tier-badge";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -189,10 +190,11 @@ export function AvailabilityCard({
         <div className="mt-auto flex flex-col gap-0">
           <span className="text-muted-foreground/70 flex min-w-0 items-center gap-1 text-xs">
             {authorPrefix}
-            {author && <TierBadge tier={author.tier} />}
+            {author && <TierBadge tier={author.tier} isAdmin={author.isAdmin} />}
             <span className="min-w-0 truncate">
               {author?.pseudo ?? "Utilisateur"} · {authorTime}
             </span>
+            {author && !author.isAdmin && <SignalerPseudoDialog targetUserId={authorId} />}
           </span>
           <div className="flex flex-nowrap items-center gap-0">
             <div className="flex items-center">

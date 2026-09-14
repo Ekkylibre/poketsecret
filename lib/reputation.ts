@@ -1,3 +1,4 @@
+import { isAdminUser } from "@/lib/admin";
 import { sql } from "@/lib/db";
 import {
   FENETRE_ANTI_COLLUSION_JOURS,
@@ -201,7 +202,7 @@ async function computeSignalementDispoScore(disponibiliteId: string): Promise<{ 
   for (const r of rows as { motif: string; score: number; votants: number }[]) {
     const seuil =
       r.motif === "inapproprie" ? THRESHOLDS.signalementDispoSpam : THRESHOLDS.signalementDispoGeneral;
-    if (r.votants >= seuil.minVotants && r.score <= seuil.seuilMasquage) return { masque: true };
+    if (r.votants >= seuil.minVotants && r.score >= seuil.seuilMasquage) return { masque: true };
   }
   return { masque: false };
 }
@@ -241,12 +242,51 @@ export async function resolveMagasinVote(magasinId: string) {
   const { score, votants } = scoreRows[0] as { score: number; votants: number };
   const seuil = THRESHOLDS.signalementMagasin;
 
-  let nouveauMasque = magasin.masque;
-  if (votants >= seuil.minVotants && score <= seuil.seuilMasquage) nouveauMasque = true;
-  else if (magasin.masque && score >= SEUIL_DEMASQUAGE) nouveauMasque = false;
+  // Pas de branche de démasquage séparée : recalculé entièrement depuis les lignes
+  // actuelles à chaque appel (contrairement à "dispute", il n'y a pas de contre-vote
+  // positif dont l'absence justifierait un seuil à part pour repasser en dessous).
+  const nouveauMasque = votants >= seuil.minVotants && score >= seuil.seuilMasquage;
 
   if (nouveauMasque !== magasin.masque) {
     await sql`update public.magasins set masque = ${nouveauMasque}, modifie_le = now() where id = ${magasinId}`;
+  }
+}
+
+/** Même principe que resolveMagasinVote, mais la cible est un compte (pas de contenu à
+ *  masquer) : pseudo_signale remplace le pseudo affiché par un texte neutre partout où
+ *  il est montré (voir fetchAuthorPseudos), sans effacer le compte ni son historique.
+ *  Pas de fenêtre anti-collusion : la contrainte unique(utilisateur_id, signale_par) sur
+ *  signalements_pseudos garantit déjà qu'un même votant ne compte qu'une fois pour une
+ *  même cible (contrairement aux votes sur dispos/magasins, où un même votant pourrait
+ *  sinon peser sur plusieurs contenus différents du même auteur). */
+export async function resolvePseudoSignalement(utilisateurId: string) {
+  // Défense en profondeur : signalerPseudo bloque déjà l'admin en amont, mais si une
+  // ligne existait quand même (accès direct à la base, futur appel qui oublie ce check),
+  // le pseudo affiché ne doit jamais devenir "Utilisateur signalé" pour ce compte.
+  if (isAdminUser(utilisateurId)) return;
+
+  const rows = await sql`
+    select pseudo_signale from public.profils_utilisateurs where id = ${utilisateurId}
+  `;
+  const profil = rows[0] as { pseudo_signale: boolean } | undefined;
+  if (!profil) return;
+
+  const scoreRows = await sql`
+    select coalesce(sum(greatest(0.1, rep.reputation / 100.0)), 0) as score, count(*) as votants
+    from public.signalements_pseudos s
+    join public.profils_utilisateurs rep on rep.id = s.signale_par
+    where s.utilisateur_id = ${utilisateurId}
+  `;
+  const { score, votants } = scoreRows[0] as { score: number; votants: number };
+  const seuil = THRESHOLDS.signalementPseudo;
+
+  const nouveauSignale = votants >= seuil.minVotants && score >= seuil.seuilMasquage;
+
+  if (nouveauSignale !== profil.pseudo_signale) {
+    await sql`
+      update public.profils_utilisateurs set pseudo_signale = ${nouveauSignale}, modifie_le = now()
+      where id = ${utilisateurId}
+    `;
   }
 }
 
@@ -265,9 +305,10 @@ export async function countVotesToday(utilisateurId: string): Promise<number> {
 
 export async function countSignalementsToday(utilisateurId: string): Promise<number> {
   const rows = await sql`
-    select count(*)::int as total
-    from public.signalements_disponibilites
-    where utilisateur_id = ${utilisateurId} and cree_le::date = current_date
+    select
+      (select count(*) from public.signalements_disponibilites where utilisateur_id = ${utilisateurId} and cree_le::date = current_date)
+      + (select count(*) from public.signalements_pseudos where signale_par = ${utilisateurId} and cree_le::date = current_date)
+      as total
   `;
   return Number((rows[0] as { total: number }).total);
 }

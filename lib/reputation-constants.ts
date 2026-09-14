@@ -61,16 +61,31 @@ export function voteWeight(reputation: number): number {
   return Math.max(0.1, reputation / 100);
 }
 
+// "dispute" a un score NET (confirmations - contestations), qui peut vraiment devenir
+// négatif : seuilMasquage y est négatif, comparé via "<=". Les axes purement
+// "signalement" (pas de contre-vote positif à soustraire, voir computeSignalementDispoScore
+// et resolveMagasinVote/resolvePseudoSignalement) ont un score qui ne fait qu'additionner
+// des poids positifs : seuilMasquage y est une magnitude POSITIVE, comparée via ">=".
+// (Bug corrigé : ces seuils étaient négatifs avant, donc `score <= seuilMasquage` ne se
+// déclenchait jamais puisqu'un score de somme de poids positifs ne peut pas être ≤ à un
+// nombre négatif — le signalement seul ne masquait donc jamais rien.)
 export const THRESHOLDS = {
   dispute: { minVotants: 3, seuilMasquage: -3, seuilConfirmation: 3 },
-  signalementDispoGeneral: { minVotants: 2, seuilMasquage: -3 },
-  signalementDispoSpam: { minVotants: 2, seuilMasquage: -2 },
-  signalementMagasin: { minVotants: 5, seuilMasquage: -5 },
+  signalementDispoGeneral: { minVotants: 2, seuilMasquage: 3 },
+  signalementDispoSpam: { minVotants: 2, seuilMasquage: 2 },
+  signalementMagasin: { minVotants: 5, seuilMasquage: 5 },
+  // Un pseudo mal choisi reste visible sur TOUTES les contributions du compte, un peu
+  // comme un magasin (portée large), mais un pseudo limite, une fois passé le filtre
+  // automatique à l'inscription (voir lib/pseudo-validation.ts), est en général moins
+  // grave qu'un faux magasin : seuil entre signalementDispoGeneral et signalementMagasin.
+  signalementPseudo: { minVotants: 3, seuilMasquage: 3 },
 } as const;
 
-// Hystérésis : masqué au seuil négatif, redémasqué seulement en repassant au-dessus de
-// 0 (pas juste au-dessus du seuil). Évite qu'un score qui oscille pile autour du seuil
-// fasse apparaître/disparaître le contenu à chaque vote.
+// Hystérésis pour "dispute" uniquement (seul axe à score NET, qui peut vraiment
+// osciller des deux côtés de 0) : masqué au seuil négatif, redémasqué seulement en
+// repassant au-dessus de 0, pas juste au-dessus du seuil. Les axes purement
+// "signalement" n'en ont pas besoin : recalculés à chaque fois depuis les lignes
+// actuelles (pas d'état intermédiaire à protéger de l'oscillation).
 export const SEUIL_DEMASQUAGE = 0;
 
 // Anti-collusion : un même votant ne pèse que sur UNE dispo d'un même auteur par
