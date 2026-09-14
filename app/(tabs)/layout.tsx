@@ -1,5 +1,6 @@
 import { BottomNav } from "@/components/bottom-nav";
 import { LocationProvider } from "@/components/location-provider";
+import { RefreshOnVisible } from "@/components/refresh-on-visible";
 import { auth } from "@/lib/auth/server";
 import { getUnreadNotificationCount } from "@/lib/notifications";
 
@@ -14,6 +15,7 @@ export default async function TabsLayout({ children }: { children: React.ReactNo
 
   return (
     <LocationProvider>
+      <RefreshOnVisible />
       <div className="flex min-h-0 flex-1 flex-col overflow-y-auto pb-3">{children}</div>
       <BottomNav unreadCount={unreadCount} />
     </LocationProvider>
