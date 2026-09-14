@@ -46,7 +46,7 @@ import { ConfidenceBadge } from "@/components/confidence-badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { makeConfetti, type ConfettiPiece } from "@/lib/confetti";
-import { mockCurrentUser } from "@/lib/mock-data";
+import type { AuthorInfo } from "@/lib/queries";
 import {
   distinctSeries,
   languageAbbreviations,
@@ -68,6 +68,25 @@ import { cn } from "@/lib/utils";
 
 const natureOptions: AvailabilityNature[] = ["Nouveau", "Promo", "Réassort"];
 
+/** Recadre au centre sur le plus grand carré possible et réencode en JPEG compressé —
+ *  même geste que confirmCrop() (zoom neutre, décalage nul), mais sans dépendre du DOM
+ *  du panneau de recadrage (qui n'est monté que si l'utilisateur l'ouvre). Sert de
+ *  compression automatique dès la prise de photo : sans ça, une photo de smartphone non
+ *  recadrée manuellement partait brute (plusieurs Mo) et dépassait la limite des Server
+ *  Actions Next.js (413 en prod, voir next.config.ts). */
+function centeredSquareJpeg(img: HTMLImageElement, outputSize = 720, quality = 0.9): string | null {
+  const { naturalWidth: w, naturalHeight: h } = img;
+  if (!w || !h) return null;
+  const srcSize = Math.min(w, h);
+  const canvas = document.createElement("canvas");
+  canvas.width = outputSize;
+  canvas.height = outputSize;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return null;
+  ctx.drawImage(img, (w - srcSize) / 2, (h - srcSize) / 2, srcSize, srcSize, 0, 0, outputSize, outputSize);
+  return canvas.toDataURL("image/jpeg", quality);
+}
+
 function ProduitDialog({
   storeId,
   products,
@@ -76,6 +95,7 @@ function ProduitDialog({
   availability,
   product,
   size = "default",
+  currentUser,
 }: {
   storeId: string;
   products: Product[];
@@ -86,6 +106,7 @@ function ProduitDialog({
   availability?: Availability;
   product?: Product;
   size?: "default" | "sm";
+  currentUser?: AuthorInfo;
 }) {
   const [open, setOpen] = useState(false);
   const [handledSuccess, setHandledSuccess] = useState(false);
@@ -349,8 +370,16 @@ function ProduitDialog({
     if (!file) return;
     const reader = new FileReader();
     reader.onload = () => {
-      setPhotoDataUrl(reader.result as string);
+      const dataUrl = reader.result as string;
+      setPhotoDataUrl(dataUrl);
       resetCrop();
+
+      // Compression par défaut, sans attendre que l'utilisateur ouvre le recadrage
+      // manuel : sinon une photo de smartphone jamais recadrée part brute (voir
+      // centeredSquareJpeg ci-dessus).
+      const img = new Image();
+      img.onload = () => setCroppedPhotoDataUrl(centeredSquareJpeg(img));
+      img.src = dataUrl;
     };
     reader.readAsDataURL(file);
   }
@@ -837,7 +866,7 @@ function ProduitDialog({
                   </div>
                   <div className="flex min-h-5 flex-wrap items-center gap-1">
                     <span className="text-muted-foreground/70 truncate text-xs">
-                      {mode === "create" ? "Créé par" : "Modifié par"} {mockCurrentUser.username} ·{" "}
+                      {mode === "create" ? "Créé par" : "Modifié par"} {currentUser?.pseudo ?? "Toi"} ·{" "}
                       à l&apos;instant
                     </span>
                   </div>
@@ -865,7 +894,7 @@ function ProduitDialog({
                       <span className="text-muted-foreground text-[11px] tabular-nums">0</span>
                     </div>
                     <ConfidenceBadge
-                      confidence={mockCurrentUser.reputation}
+                      confidence={currentUser?.reputation ?? 100}
                       className="ml-2 h-4 px-0.5 py-0 text-[10px] leading-none"
                     />
                     <button
@@ -1077,10 +1106,12 @@ export function AjouterProduitDialog({
   storeId,
   products,
   referenceExtensions,
+  currentUser,
 }: {
   storeId: string;
   products: Product[];
   referenceExtensions?: SeriesExtensionPair[];
+  currentUser?: AuthorInfo;
 }) {
   return (
     <ProduitDialog
@@ -1088,6 +1119,7 @@ export function AjouterProduitDialog({
       products={products}
       referenceExtensions={referenceExtensions}
       mode="create"
+      currentUser={currentUser}
     />
   );
 }
@@ -1098,12 +1130,14 @@ export function ModifierProduitDialog({
   availability,
   product,
   size,
+  currentUser,
 }: {
   storeId: string;
   products: Product[];
   availability: Availability;
   product: Product;
   size?: "default" | "sm";
+  currentUser?: AuthorInfo;
 }) {
   return (
     <ProduitDialog
@@ -1113,6 +1147,7 @@ export function ModifierProduitDialog({
       availability={availability}
       product={product}
       size={size}
+      currentUser={currentUser}
     />
   );
 }

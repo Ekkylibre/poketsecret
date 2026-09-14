@@ -9,6 +9,16 @@ const nextConfig: NextConfig = {
   devIndicators: {
     position: "top-right",
   },
+  experimental: {
+    serverActions: {
+      // Next.js plafonne les Server Actions à 1 Mo par défaut : une vraie photo de
+      // smartphone dépasse ça une fois encodée en data URL base64 (+33% de volume), ce
+      // qui faisait planter enregistrerProduit sur mobile avec une 413 générique.
+      // 15 Mo laisse de la marge sur la limite de 10 Mo déjà imposée par lib/blob.ts
+      // (image décodée) + le surcoût du base64 et des autres champs du formulaire.
+      bodySizeLimit: "15mb",
+    },
+  },
   // N'annonce pas "propulsé par Next.js" au monde entier, aucune raison de faciliter le
   // fingerprinting. La CSP (protection XSS/clickjacking) est posée dans proxy.ts, pas
   // ici : elle a besoin d'un nonce généré par requête pour laisser passer les scripts
