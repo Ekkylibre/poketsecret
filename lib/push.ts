@@ -92,7 +92,7 @@ export async function notifyFollowersOfNewDisponibilite(
   const payload: PushPayload = {
     title: `${ctx.produit_nom} ${ctx.extension} disponible !`,
     body: `Repéré chez ${ctx.magasin_nom}`,
-    url: `/magasins?store=${storeId}&dispo=${dispoId}`,
+    url: `/?store=${storeId}&dispo=${dispoId}`,
   };
 
   await Promise.all([...userIds].map((userId) => sendPushToUser(userId, payload)));

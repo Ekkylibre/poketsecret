@@ -129,7 +129,7 @@ export async function likeStore(storeId: string) {
     on conflict (magasin_id, utilisateur_id) do update set type = 'jaime', categorie = null, cree_le = now()
   `;
   await refreshMagasinCompteurs(storeId);
-  revalidatePath("/");
+  revalidatePath("/carte");
   return { success: true };
 }
 
@@ -151,7 +151,7 @@ export async function reportStore(storeId: string) {
   `;
   await refreshMagasinCompteurs(storeId);
   await resolveMagasinVote(storeId);
-  revalidatePath("/");
+  revalidatePath("/carte");
   return { success: true };
 }
 
@@ -190,8 +190,8 @@ export async function signalerMagasin(
   await refreshMagasinCompteurs(storeId);
   await resolveMagasinVote(storeId);
 
-  revalidatePath("/magasins");
   revalidatePath("/");
+  revalidatePath("/carte");
   return { success: true };
 }
 
@@ -221,7 +221,7 @@ export async function togglePinStore(storeId: string) {
     pinned = true;
   }
 
-  revalidatePath("/magasins");
+  revalidatePath("/");
   revalidatePath("/profil");
   return { success: true as const, pinned };
 }
@@ -260,7 +260,7 @@ export async function toggleFollowStore(storeId: string) {
     followed = true;
   }
 
-  revalidatePath("/magasins");
+  revalidatePath("/");
   revalidatePath("/notifications");
   revalidatePath("/profil");
   return { success: true as const, followed };
@@ -298,7 +298,7 @@ export async function toggleFollowProduct(productId: string) {
     followed = true;
   }
 
-  revalidatePath("/magasins");
+  revalidatePath("/");
   revalidatePath("/notifications");
   revalidatePath("/profil");
   return { success: true as const, followed };
@@ -372,7 +372,7 @@ export async function suivreNouveauProduit(
     `;
   }
 
-  revalidatePath("/magasins");
+  revalidatePath("/");
   revalidatePath("/notifications");
   revalidatePath("/profil");
   return { success: true };
@@ -511,7 +511,7 @@ export async function enregistrerProduit(
     );
   }
 
-  revalidatePath("/magasins");
+  revalidatePath("/");
   return { success: true };
 }
 
@@ -557,7 +557,7 @@ export async function voterDisponibilite(
   await refreshDisponibiliteCompteurs(availabilityId);
   await resolveDisponibiliteVote(availabilityId);
 
-  revalidatePath("/magasins");
+  revalidatePath("/");
   return { success: true };
 }
 
@@ -584,7 +584,7 @@ export async function togglePinDisponibilite(availabilityId: string) {
   const row = rows[0] as { epingle: boolean } | undefined;
   if (!row) return { error: "Disponibilité introuvable." };
 
-  revalidatePath("/magasins");
+  revalidatePath("/");
   return { success: true as const, pinned: row.epingle };
 }
 
@@ -622,7 +622,7 @@ export async function signalerDisponibilite(
   await refreshDisponibiliteCompteurs(availabilityId);
   await resolveDisponibiliteVote(availabilityId);
 
-  revalidatePath("/magasins");
+  revalidatePath("/");
   return { success: true };
 }
 
@@ -671,7 +671,7 @@ export async function signalerPseudo(
 
   await resolvePseudoSignalement(targetUserId);
 
-  revalidatePath("/magasins");
+  revalidatePath("/");
   revalidatePath("/notifications");
   return { success: true };
 }

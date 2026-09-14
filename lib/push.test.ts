@@ -118,7 +118,7 @@ describe("notifyFollowersOfNewDisponibilite", () => {
       JSON.stringify({
         title: "Dracaufeu 151 disponible !",
         body: "Repéré chez Magasin Test",
-        url: "/magasins?store=s1&dispo=d1",
+        url: "/?store=s1&dispo=d1",
       })
     );
   });

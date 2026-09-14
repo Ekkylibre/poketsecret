@@ -114,7 +114,7 @@ export function NotificationRow({
     axisRef.current = null;
 
     if (wasTap) {
-      router.push(`/magasins?store=${store.id}&dispo=${availability.id}`);
+      router.push(`/?store=${store.id}&dispo=${availability.id}`);
       return;
     }
 

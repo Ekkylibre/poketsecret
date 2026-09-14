@@ -306,9 +306,9 @@ export async function changerPseudo(
   }
 
   revalidatePath("/profil");
-  revalidatePath("/magasins");
-  revalidatePath("/notifications");
   revalidatePath("/");
+  revalidatePath("/notifications");
+  revalidatePath("/carte");
   return { success: true };
 }
 

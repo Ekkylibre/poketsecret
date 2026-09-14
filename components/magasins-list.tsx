@@ -464,7 +464,7 @@ export function MagasinsList({
 
         <div className="no-scrollbar flex items-center gap-1.5 overflow-x-auto">
           <Link
-            href="/"
+            href="/carte"
             className="border-input bg-background text-muted-foreground flex shrink-0 items-center gap-1 rounded-full border py-1 pr-2.5 pl-2 text-xs font-medium whitespace-nowrap"
           >
             <Ruler className="size-3" />

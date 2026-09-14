@@ -69,8 +69,8 @@ export async function creerMagasin(
     )
   `;
 
-  revalidatePath("/magasins");
   revalidatePath("/");
+  revalidatePath("/carte");
   return { success: true };
 }
 
@@ -144,7 +144,7 @@ export async function modifierMagasin(
     return { error: "Magasin introuvable." };
   }
 
-  revalidatePath("/magasins");
   revalidatePath("/");
+  revalidatePath("/carte");
   return { success: true };
 }
