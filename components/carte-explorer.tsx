@@ -1,9 +1,9 @@
 "use client";
 
 import { Crosshair, MapPin, Phone, Ruler, Search, Store as StoreIcon } from "lucide-react";
-import mapboxgl from "mapbox-gl";
-import { type FormEvent, useMemo, useState } from "react";
-import { Layer, Map, Marker, Popup, Source } from "react-map-gl/mapbox";
+import mapboxgl, { type GeoJSONSource } from "mapbox-gl";
+import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { Layer, Map, type MapRef, Marker, Popup, Source } from "react-map-gl/mapbox";
 
 import { useLocation } from "@/components/location-provider";
 import { NouveauMagasinDialog } from "@/components/nouveau-magasin-dialog";
@@ -19,6 +19,18 @@ import { formatStoreAddress } from "@/lib/utils";
 import "mapbox-gl/dist/mapbox-gl.css";
 
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
+
+// Id de la source groupée (clustering natif Mapbox) : les magasins proches à l'écran se
+// regroupent en une bulle avec un chiffre tant qu'on est dézoomé, comme sur Google Maps.
+const CLUSTER_SOURCE_ID = "stores-cluster";
+
+// Pas le type GeoJSONFeature de mapbox-gl : il hérite de GeoJSON.Feature (paquet
+// @types/geojson, absent de ce projet), donc `.properties`/`.geometry` n'y sont pas
+// visibles pour TS. Un type local minimal, avec juste ce qu'on lit vraiment ici.
+interface StoreClusterFeature {
+  properties: { storeId?: string; cluster_id?: number; point_count?: number };
+  geometry: { coordinates: [number, number] };
+}
 
 function distanceKm(a: { lat: number; lng: number }, b: { lat: number; lng: number }) {
   const R = 6371;
@@ -52,7 +64,9 @@ export function CarteExplorer({
   stores: Store[];
   authorPseudos: Record<string, AuthorInfo>;
 }) {
-  const { center, setCenter, radiusKm, setRadiusKm } = useLocation();
+  const { center, setCenter, radiusKm, setRadiusKm, hasAutoLocated, setHasAutoLocated } =
+    useLocation();
+  const mapRef = useRef<MapRef>(null);
   const [viewState, setViewState] = useState({
     latitude: center.lat,
     longitude: center.lng,
@@ -70,6 +84,25 @@ export function CarteExplorer({
   const [isSearchingAddress, setIsSearchingAddress] = useState(false);
   const [storeSearchError, setStoreSearchError] = useState<string | null>(null);
   const [addressSearchError, setAddressSearchError] = useState<string | null>(null);
+
+  // Géolocalisation automatique à l'arrivée sur la carte, une seule fois par session
+  // (voir hasAutoLocated) : Lyon (DEFAULT_CENTER) n'est qu'un repli en attendant, pas la
+  // destination prévue. Échec/refus silencieux (pas de setAddressSearchError) : c'est une
+  // tentative automatique en arrière-plan, pas une action demandée par l'utilisateur.
+  useEffect(() => {
+    if (hasAutoLocated) return;
+    setHasAutoLocated(true);
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const { latitude, longitude } = pos.coords;
+        setViewState((v) => ({ ...v, latitude, longitude, zoom: 13 }));
+        setCenter({ lat: latitude, lng: longitude });
+        setPinnedLocation({ lat: latitude, lng: longitude });
+      },
+      () => {}
+    );
+  }, [hasAutoLocated, setHasAutoLocated, setCenter]);
 
   const circle = useMemo(
     () => ({
@@ -92,6 +125,45 @@ export function CarteExplorer({
       ),
     [stores, center, radiusKm]
   );
+
+  const storesGeojson = useMemo(
+    () => ({
+      type: "FeatureCollection" as const,
+      features: storesInRadius.map((s) => ({
+        type: "Feature" as const,
+        properties: { storeId: s.id },
+        geometry: { type: "Point" as const, coordinates: [s.lng, s.lat] },
+      })),
+    }),
+    [storesInRadius]
+  );
+
+  // Magasins regroupés dans une bulle (cluster) vs affichés individuellement, recalculé
+  // à chaque frame de rendu (voir onRender sur <Map>) : Mapbox ne fournit ce découpage
+  // qu'une fois la source chargée, pas de façon dérivable à l'avance côté React. `null`
+  // (avant le premier calcul) affiche tout individuellement plutôt que rien du tout.
+  const [unclusteredStoreIds, setUnclusteredStoreIds] = useState<Set<string> | null>(null);
+  const [clusterFeatures, setClusterFeatures] = useState<StoreClusterFeature[]>([]);
+
+  function handleMapRender() {
+    const map = mapRef.current;
+    if (!map || !map.getSource(CLUSTER_SOURCE_ID) || !map.isSourceLoaded(CLUSTER_SOURCE_ID)) return;
+
+    const unclustered = map.querySourceFeatures(CLUSTER_SOURCE_ID, {
+      filter: ["!", ["has", "point_count"]],
+    }) as unknown as StoreClusterFeature[];
+    setUnclusteredStoreIds(new Set(unclustered.map((f) => f.properties.storeId!)));
+
+    // querySourceFeatures peut renvoyer un même cluster plusieurs fois (chevauchement de
+    // tuiles) : dédoublonné par cluster_id, pas par référence d'objet. globalThis.Map
+    // (pas Map, qui désigne le composant <Map> de react-map-gl importé plus haut).
+    const clusters = map.querySourceFeatures(CLUSTER_SOURCE_ID, {
+      filter: ["has", "point_count"],
+    }) as unknown as StoreClusterFeature[];
+    const byClusterId = new globalThis.Map<number, StoreClusterFeature>();
+    for (const f of clusters) byClusterId.set(f.properties.cluster_id!, f);
+    setClusterFeatures(Array.from(byClusterId.values()));
+  }
 
   function setSearchCenter(lat: number, lng: number) {
     setCenter({ lat, lng });
@@ -184,10 +256,12 @@ export function CarteExplorer({
     <div className="flex h-full flex-1 flex-col gap-4 overflow-hidden p-4">
       <div className="relative min-h-48 flex-1 overflow-hidden rounded-2xl">
         <Map
+          ref={mapRef}
           {...viewState}
           onMove={(evt) => setViewState(evt.viewState)}
           onClick={handleMapClick}
           onLoad={handleMapLoad}
+          onRender={handleMapRender}
           mapboxAccessToken={MAPBOX_TOKEN}
           mapStyle="mapbox://styles/mapbox/streets-v12"
           style={{ width: "100%", height: "100%" }}
@@ -197,6 +271,35 @@ export function CarteExplorer({
               id="radius-fill"
               type="fill"
               paint={{ "fill-color": "#007cbf", "fill-opacity": 0.1 }}
+            />
+          </Source>
+
+          {/* Source groupée pour que Mapbox calcule les clusters : les pins/bulles visibles
+              restent des <Marker> React (rendus séparément ci-dessous via
+              unclusteredStoreIds/clusterFeatures), pour garder exactement le même style
+              (icône Lucide) que les pins individuels d'avant. Les deux Layer ci-dessous
+              sont invisibles (opacity 0) : sans au moins un Layer utilisant la source,
+              Mapbox ne construit jamais les tuiles internes nécessaires à
+              querySourceFeatures, qui ne renverrait sinon jamais rien. */}
+          <Source
+            id={CLUSTER_SOURCE_ID}
+            type="geojson"
+            data={storesGeojson}
+            cluster
+            clusterMaxZoom={14}
+            clusterRadius={50}
+          >
+            <Layer
+              id="clusters-invisible"
+              type="circle"
+              filter={["has", "point_count"]}
+              paint={{ "circle-opacity": 0, "circle-radius": 1 }}
+            />
+            <Layer
+              id="unclustered-invisible"
+              type="circle"
+              filter={["!", ["has", "point_count"]]}
+              paint={{ "circle-opacity": 0, "circle-radius": 1 }}
             />
           </Source>
 
@@ -211,22 +314,52 @@ export function CarteExplorer({
             </Marker>
           )}
 
-          {storesInRadius.map((s) => (
-            <Marker
-              key={s.id}
-              latitude={s.lat}
-              longitude={s.lng}
-              anchor="bottom"
-              onClick={(e) => {
-                e.originalEvent.stopPropagation();
-                setSelectedStore(s);
-              }}
-            >
-              <div className="bg-primary text-primary-foreground border-background flex size-7 cursor-pointer items-center justify-center rounded-full border-2 shadow">
-                <StoreIcon className="size-3.5" />
-              </div>
-            </Marker>
-          ))}
+          {storesInRadius
+            .filter((s) => unclusteredStoreIds === null || unclusteredStoreIds.has(s.id))
+            .map((s) => (
+              <Marker
+                key={s.id}
+                latitude={s.lat}
+                longitude={s.lng}
+                anchor="bottom"
+                onClick={(e) => {
+                  e.originalEvent.stopPropagation();
+                  setSelectedStore(s);
+                }}
+              >
+                <div className="bg-primary text-primary-foreground border-background flex size-7 cursor-pointer items-center justify-center rounded-full border-2 shadow">
+                  <StoreIcon className="size-3.5" />
+                </div>
+              </Marker>
+            ))}
+
+          {clusterFeatures.map((f) => {
+            const [lng, lat] = f.geometry.coordinates;
+            const clusterId = f.properties.cluster_id!;
+            const count = f.properties.point_count!;
+            return (
+              <Marker
+                key={`cluster-${clusterId}`}
+                latitude={lat}
+                longitude={lng}
+                anchor="center"
+                onClick={(e) => {
+                  e.originalEvent.stopPropagation();
+                  const source = mapRef.current?.getSource(CLUSTER_SOURCE_ID) as
+                    | GeoJSONSource
+                    | undefined;
+                  source?.getClusterExpansionZoom(clusterId, (err, zoom) => {
+                    if (err || zoom == null) return;
+                    setViewState((v) => ({ ...v, latitude: lat, longitude: lng, zoom }));
+                  });
+                }}
+              >
+                <div className="bg-primary text-primary-foreground border-background flex size-9 cursor-pointer items-center justify-center rounded-full border-2 text-sm font-semibold shadow">
+                  {count}
+                </div>
+              </Marker>
+            );
+          })}
 
           {selectedStore && (
             <Popup
