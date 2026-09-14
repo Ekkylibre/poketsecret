@@ -4,9 +4,14 @@ const nextConfig: NextConfig = {
   turbopack: {
     root: __dirname,
   },
+  // Par défaut en bas à gauche, ça chevauche la BottomNav sur les petits écrans (app
+  // mobile-first) : dev only, jamais en prod, mais gênant pour tester en responsive.
+  devIndicators: {
+    position: "top-right",
+  },
   // N'annonce pas "propulsé par Next.js" au monde entier, aucune raison de faciliter le
-  // fingerprinting. La CSP (protection XSS/clickjacking) est posée dans middleware.ts,
-  // pas ici : elle a besoin d'un nonce généré par requête pour laisser passer les scripts
+  // fingerprinting. La CSP (protection XSS/clickjacking) est posée dans proxy.ts, pas
+  // ici : elle a besoin d'un nonce généré par requête pour laisser passer les scripts
   // inline que Next.js injecte lui-même à l'hydratation.
   poweredByHeader: false,
   async headers() {
