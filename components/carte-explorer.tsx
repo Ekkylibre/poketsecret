@@ -60,9 +60,11 @@ function circleCoordinates(centerLat: number, centerLng: number, radiusKm: numbe
 export function CarteExplorer({
   stores,
   authorPseudos,
+  currentUser,
 }: {
   stores: Store[];
   authorPseudos: Record<string, AuthorInfo>;
+  currentUser?: AuthorInfo;
 }) {
   const { center, setCenter, radiusKm, setRadiusKm, hasAutoLocated, setHasAutoLocated } =
     useLocation();
@@ -401,6 +403,7 @@ export function CarteExplorer({
             onClose={() => setDetailStoreId(null)}
             className="min-w-0 flex-1 basis-0"
             authorPseudos={authorPseudos}
+            currentUser={currentUser}
           />
         )}
 
@@ -455,7 +458,7 @@ export function CarteExplorer({
               <Crosshair className="size-4" />
               Me localiser
             </Button>
-            <NouveauMagasinDialog />
+            <NouveauMagasinDialog currentUser={currentUser} />
           </div>
         </Card>
       </div>

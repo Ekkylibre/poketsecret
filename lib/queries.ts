@@ -88,6 +88,7 @@ export interface AuthorInfo {
   pseudo: string;
   tier: Tier;
   isAdmin: boolean;
+  reputation: number;
 }
 
 /** Remplace l'ancien lookup statique `mockUsers`/`getUsername` : les pseudos réels
@@ -110,6 +111,7 @@ export async function fetchAuthorPseudos(): Promise<Record<string, AuthorInfo>> 
       pseudo: r.pseudo_signale ? "Utilisateur signalé" : r.pseudo,
       tier: tierOf(r.reputation),
       isAdmin: isAdminUser(r.id),
+      reputation: r.reputation,
     };
   }
   return map;

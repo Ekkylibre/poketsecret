@@ -28,6 +28,7 @@ export function AvailabilityCard({
   isFollowed,
   highlighted,
   authorPseudos,
+  currentUser,
 }: {
   availability: Availability;
   product: Product;
@@ -39,6 +40,7 @@ export function AvailabilityCard({
   /** Venue d'une notification qui pointe vers cette dispo précise. */
   highlighted?: boolean;
   authorPseudos: Record<string, AuthorInfo>;
+  currentUser?: AuthorInfo;
 }) {
   const confidence = decayedConfidence(availability.baseConfidence, availability.reportedAt);
   const [isPending, startTransition] = useTransition();
@@ -234,6 +236,7 @@ export function AvailabilityCard({
               availability={availability}
               product={product}
               size="sm"
+              currentUser={currentUser}
             />
           </div>
         </div>

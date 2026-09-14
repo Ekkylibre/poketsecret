@@ -42,7 +42,7 @@ import { Input } from "@/components/ui/input";
 import { storeConfidence } from "@/lib/confidence";
 import { type ConfettiPiece, makeConfetti } from "@/lib/confetti";
 import { dayLabels, formatDayHours, parseHoursFromFormData, weekdayOrder } from "@/lib/hours";
-import { mockCurrentUser } from "@/lib/mock-data";
+import type { AuthorInfo } from "@/lib/queries";
 import type { Store, StoreHours, Weekday } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -150,7 +150,15 @@ function PeriodFields({
   );
 }
 
-function MagasinDialog({ mode, store }: { mode: "create" | "edit"; store?: Store }) {
+function MagasinDialog({
+  mode,
+  store,
+  currentUser,
+}: {
+  mode: "create" | "edit";
+  store?: Store;
+  currentUser?: AuthorInfo;
+}) {
   const formRef = useRef<HTMLFormElement>(null);
   const [open, setOpen] = useState(false);
   const action = mode === "edit" && store ? modifierMagasin.bind(null, store.id) : creerMagasin;
@@ -610,7 +618,7 @@ function MagasinDialog({ mode, store }: { mode: "create" | "edit"; store?: Store
               )}
 
               <p className="text-muted-foreground/70 text-xs">
-                {mode === "create" ? "Créé par" : "Modifié par"} {mockCurrentUser.username} ·{" "}
+                {mode === "create" ? "Créé par" : "Modifié par"} {currentUser?.pseudo ?? "Toi"} ·{" "}
                 à l&apos;instant
               </p>
 
@@ -836,10 +844,16 @@ function MagasinDialog({ mode, store }: { mode: "create" | "edit"; store?: Store
   );
 }
 
-export function NouveauMagasinDialog() {
-  return <MagasinDialog mode="create" />;
+export function NouveauMagasinDialog({ currentUser }: { currentUser?: AuthorInfo }) {
+  return <MagasinDialog mode="create" currentUser={currentUser} />;
 }
 
-export function ModifierMagasinDialog({ store }: { store: Store }) {
-  return <MagasinDialog mode="edit" store={store} />;
+export function ModifierMagasinDialog({
+  store,
+  currentUser,
+}: {
+  store: Store;
+  currentUser?: AuthorInfo;
+}) {
+  return <MagasinDialog mode="edit" store={store} currentUser={currentUser} />;
 }

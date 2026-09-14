@@ -181,13 +181,13 @@ describe("fetchAvailabilities", () => {
 describe("fetchAuthorPseudos", () => {
   it("construit un dictionnaire id -> { pseudo, palier dérivé de la réputation }", async () => {
     sqlMock.mockResolvedValue([
-      { id: "u1", pseudo: "Sacha", reputation: 90 },
-      { id: "u2", pseudo: "Ondine", reputation: 10 },
+      { id: "u1", pseudo: "Sacha", reputation: 90, pseudo_signale: false },
+      { id: "u2", pseudo: "Ondine", reputation: 10, pseudo_signale: false },
     ]);
 
     expect(await fetchAuthorPseudos()).toEqual({
-      u1: { pseudo: "Sacha", tier: "fiable", isAdmin: false },
-      u2: { pseudo: "Ondine", tier: "nouveau", isAdmin: false },
+      u1: { pseudo: "Sacha", tier: "fiable", isAdmin: false, reputation: 90 },
+      u2: { pseudo: "Ondine", tier: "nouveau", isAdmin: false, reputation: 10 },
     });
   });
 

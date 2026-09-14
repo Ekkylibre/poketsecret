@@ -21,11 +21,13 @@ export function StoreInfoPanel({
   onClose,
   className,
   authorPseudos,
+  currentUser,
 }: {
   store: Store;
   onClose: () => void;
   className?: string;
   authorPseudos: Record<string, AuthorInfo>;
+  currentUser?: AuthorInfo;
 }) {
   const [closing, setClosing] = useState(false);
   const authorId = store.lastModifiedById ?? store.createdById;
@@ -101,7 +103,7 @@ export function StoreInfoPanel({
         />
         <div className="flex shrink-0 items-center gap-1">
           <SignalerMagasinDialog storeId={store.id} />
-          <ModifierMagasinDialog store={store} />
+          <ModifierMagasinDialog store={store} currentUser={currentUser} />
         </div>
       </div>
     </Card>

@@ -31,6 +31,8 @@ export default async function MagasinsPage({
         : Promise.resolve({ pinnedStoreIds: [], followedStoreIds: [], followedProductIds: [] }),
     ]);
 
+  const currentUser = session?.user ? authorPseudos[session.user.id] : undefined;
+
   return (
     <MagasinsList
       stores={stores}
@@ -43,6 +45,7 @@ export default async function MagasinsPage({
       targetStoreId={store}
       targetDispoId={dispo}
       authorPseudos={authorPseudos}
+      currentUser={currentUser}
     />
   );
 }

@@ -126,6 +126,7 @@ function StoreCard({
   onToggle,
   highlightedDispoId,
   authorPseudos,
+  currentUser,
 }: {
   store: Store;
   hoursToday?: DayHours;
@@ -139,6 +140,7 @@ function StoreCard({
   onToggle: () => void;
   highlightedDispoId?: string;
   authorPseudos: Record<string, AuthorInfo>;
+  currentUser?: AuthorInfo;
 }) {
   const [sortField, setSortField] = useState<SortField>(null);
   const [sortDir, setSortDir] = useState<SortDir>("desc");
@@ -204,6 +206,7 @@ function StoreCard({
               storeId={store.id}
               products={products}
               referenceExtensions={referenceExtensions}
+              currentUser={currentUser}
             />
             <button
               type="button"
@@ -253,6 +256,7 @@ function StoreCard({
                       isFollowed={followedProductIds.includes(product.id)}
                       highlighted={availability.id === highlightedDispoId}
                       authorPseudos={authorPseudos}
+                      currentUser={currentUser}
                     />
                   );
                 })}
@@ -276,6 +280,7 @@ export function MagasinsList({
   targetStoreId,
   targetDispoId,
   authorPseudos,
+  currentUser,
 }: {
   stores: Store[];
   availabilities: Availability[];
@@ -290,6 +295,9 @@ export function MagasinsList({
   /** Disponibilité à surligner dans la grille une fois le magasin déplié. */
   targetDispoId?: string;
   authorPseudos: Record<string, AuthorInfo>;
+  /** Utilisateur connecté (pseudo/réputation réels), affiché dans l'aperçu "Créé par"
+   *  des formulaires d'ajout/modification — undefined si personne n'est connecté. */
+  currentUser?: AuthorInfo;
 }) {
   const { center, radiusKm } = useLocation();
   const [query, setQuery] = useState("");
@@ -533,6 +541,7 @@ export function MagasinsList({
                 onToggle={() => toggleExpanded(store.id)}
                 highlightedDispoId={store.id === targetStoreId ? highlightedDispoId : undefined}
                 authorPseudos={authorPseudos}
+                currentUser={currentUser}
               />
             ))}
           </>
