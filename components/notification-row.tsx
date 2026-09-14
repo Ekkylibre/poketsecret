@@ -6,7 +6,6 @@ import { type PointerEvent, useEffect, useRef, useState, useTransition } from "r
 
 import { dismissNotification } from "@/app/(tabs)/notifications/actions";
 import { ConfidenceBadge } from "@/components/confidence-badge";
-import { SignalerPseudoDialog } from "@/components/signaler-pseudo-dialog";
 import { TierBadge } from "@/components/tier-badge";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -241,7 +240,6 @@ export function NotificationRow({
                 <span className="min-w-0 truncate">
                   {author?.pseudo ?? "Utilisateur"} · {authorTime}
                 </span>
-                {author && !author.isAdmin && <SignalerPseudoDialog targetUserId={authorId} />}
               </span>
               {/* ml-2 en plus du gap du parent : espace visiblement plus large avant le
                   cluster votes/confiance, pour le distinguer du bloc auteur/durée. */}
