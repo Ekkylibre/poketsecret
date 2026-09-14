@@ -41,6 +41,11 @@ export async function getFollowedAvailabilities(userId: string): Promise<Followe
     left join public.notifications_etat ne on ne.disponibilite_id = d.id and ne.utilisateur_id = ${userId}
     where d.masquee = false
       and coalesce(ne.masquee, false) = false
+      -- Jamais de notification pour son propre dernier acte (créer OU modifier) : on le
+      -- sait déjà. Basé sur modifie_par en priorité (pas juste signale_par) pour qu'une
+      -- modification par quelqu'un d'autre sur SA PROPRE annonce continue, elle, à le
+      -- notifier normalement (voir notifyFollowersOfNewDisponibilite, même logique côté push).
+      and coalesce(d.modifie_par, d.signale_par) != ${userId}
       and (
         (ps.produit_id is not null and (ps.langue is null or d.langue = any(ps.langue)))
         or (ms.magasin_id is not null and coalesce(d.modifie_le, d.signale_le) > ms.cree_le)

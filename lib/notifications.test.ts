@@ -94,7 +94,16 @@ describe("getFollowedAvailabilities", () => {
 
     await getFollowedAvailabilities("user-42");
 
-    expect(sqlMock).toHaveBeenCalledWith(expect.anything(), "user-42", "user-42", "user-42");
+    expect(sqlMock).toHaveBeenCalledWith(expect.anything(), "user-42", "user-42", "user-42", "user-42");
+  });
+
+  it("exclut son propre dernier acte (créer OU modifier) de la requête", async () => {
+    sqlMock.mockResolvedValue([]);
+
+    await getFollowedAvailabilities("user-1");
+
+    const [strings] = sqlMock.mock.calls[0] as [TemplateStringsArray];
+    expect(strings.join(" ")).toContain("coalesce(d.modifie_par, d.signale_par) !=");
   });
 });
 
