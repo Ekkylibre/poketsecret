@@ -2,6 +2,8 @@ import { isAdminUser } from "@/lib/admin";
 import { sql } from "@/lib/db";
 import {
   FENETRE_ANTI_COLLUSION_JOURS,
+  RECONFIRMATION_DELTA,
+  RECONFIRMATION_STALE_DAYS,
   REPUTATION_DELTA,
   REPUTATION_MAX,
   REPUTATION_MIN,
@@ -63,6 +65,55 @@ async function applyReputationDelta(
       values (${utilisateurId}, ${delta}, ${raison}, ${cibleType}, ${cibleId})
     `,
   ];
+}
+
+/**
+ * Lit la référence d'ancienneté d'une annonce (dernière confirmation, ou à défaut premier
+ * signalement) : à appeler AVANT d'insérer un vote de confirmation, jamais après. Un
+ * trigger Postgres (synchroniser_compteurs_disponibilite, voir migration) met à jour
+ * derniere_confirmation_le dès l'insertion d'un vote 'confirmation' — la lire après coup
+ * verrait donc déjà la valeur fraîche que ce vote vient de poser, jamais l'ancienne.
+ */
+export async function readDerniereConfirmationReference(
+  disponibiliteId: string
+): Promise<Date | undefined> {
+  const rows = await sql`
+    select coalesce(derniere_confirmation_le, signale_le) as reference
+    from public.disponibilites
+    where id = ${disponibiliteId}
+  `;
+  return (rows[0] as { reference: Date } | undefined)?.reference;
+}
+
+/**
+ * Si `referenceAvantVote` (voir readDerniereConfirmationReference, capturée AVANT
+ * l'insertion du vote) date d'au moins RECONFIRMATION_STALE_DAYS, récompense la personne
+ * qui vient de voter confirm (pas l'auteur, déjà récompensé séparément par
+ * resolveDisponibiliteVote quand le score global franchit un seuil) : un petit geste pour
+ * "j'ai vérifié, toujours là", pour inciter à l'entretien du stock existant, pas
+ * seulement à la création de nouvelles annonces. Écriture hors verrou dédié : l'enjeu
+ * (+1 point, borné par le quota de votes/jour et par l'unicité d'un vote par personne et
+ * par annonce) ne le justifie pas, même tolérance que resolveDisponibiliteVote plus bas.
+ */
+export async function rewardReconfirmationIfStale(
+  disponibiliteId: string,
+  voterId: string,
+  referenceAvantVote: Date | undefined
+): Promise<void> {
+  if (!referenceAvantVote) return;
+
+  const ageDays = (Date.now() - referenceAvantVote.getTime()) / (1000 * 60 * 60 * 24);
+  if (ageDays < RECONFIRMATION_STALE_DAYS) return;
+
+  await sql.transaction(
+    await applyReputationDelta(
+      voterId,
+      RECONFIRMATION_DELTA,
+      "reconfirmation-perimee",
+      "disponibilite",
+      disponibiliteId
+    )
+  );
 }
 
 /**

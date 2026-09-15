@@ -16,11 +16,13 @@ import {
   countSignalementsToday,
   countVotesToday,
   DAILY_LIMITS,
+  readDerniereConfirmationReference,
   REPUTATION_START,
   resetDisponibiliteResolution,
   resolveDisponibiliteVote,
   resolveMagasinVote,
   resolvePseudoSignalement,
+  rewardReconfirmationIfStale,
   tierOf,
   withQuotaLock,
 } from "@/lib/reputation";
@@ -606,6 +608,11 @@ export async function voterDisponibilite(
 
     const tierVote = tierOf(await getReputation(user.id));
     const type = newVote === "confirm" ? "confirmation" : "contestation";
+    // Capturée AVANT l'insertion du vote (voir readDerniereConfirmationReference) : un
+    // trigger Postgres met à jour derniere_confirmation_le dès cette insertion, la lire
+    // après coup verrait donc déjà la valeur fraîche plutôt que l'ancienne.
+    const referenceAvantVote =
+      newVote === "confirm" ? await readDerniereConfirmationReference(availabilityId) : undefined;
     const votedRows = await withQuotaLock<{ disponibilite_id: string }>(
       user.id,
       "vote",
@@ -624,6 +631,10 @@ export async function voterDisponibilite(
       return { error: "Tu as atteint ta limite de votes pour aujourd'hui." };
     }
     if (newVote === "confirm") {
+      await rewardReconfirmationIfStale(availabilityId, user.id, referenceAvantVote);
+      // Redondant avec le trigger Postgres pour le cas INSERT (qui pose déjà cette même
+      // valeur), mais nécessaire pour le cas UPDATE (revote après une contestation) que
+      // ce trigger ne couvre pas — voir sa définition, condition tg_op = 'INSERT' seule.
       await sql`update public.disponibilites set derniere_confirmation_le = now() where id = ${availabilityId}`;
     }
   }

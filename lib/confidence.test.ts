@@ -1,6 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { ageInHours, confidenceLabel, dateBucket, decayedConfidence, relativeTime, storeConfidence } from "./confidence";
+import {
+  ageInHours,
+  confidenceLabel,
+  dateBucket,
+  decayedConfidence,
+  isProbablyStale,
+  relativeTime,
+  storeConfidence,
+} from "./confidence";
 
 function isoMinutesAgo(minutes: number): string {
   return new Date(Date.now() - minutes * 60 * 1000).toISOString();
@@ -27,6 +35,31 @@ describe("decayedConfidence", () => {
 
   it("décroît linéairement à mi-parcours (3.5 jours = moitié du chemin vers 7 jours)", () => {
     expect(decayedConfidence(100, isoDaysAgo(3.5))).toBe(50);
+  });
+
+  it("repart de la dernière confirmation plutôt que du signalement d'origine", () => {
+    // Signalée il y a 30 jours (aurait dû tomber au plancher), mais confirmée à l'instant.
+    expect(decayedConfidence(100, isoDaysAgo(30), isoMinutesAgo(0))).toBe(100);
+  });
+
+  it("retombe au plancher si même la dernière confirmation date de plus de 7 jours", () => {
+    expect(decayedConfidence(100, isoDaysAgo(30), isoDaysAgo(10))).toBe(20);
+  });
+});
+
+describe("isProbablyStale", () => {
+  it("n'est pas périmée juste après le signalement", () => {
+    expect(isProbablyStale(isoMinutesAgo(0))).toBe(false);
+  });
+
+  it("devient périmée à partir de 7 jours sans confirmation", () => {
+    expect(isProbablyStale(isoDaysAgo(7))).toBe(true);
+    expect(isProbablyStale(isoDaysAgo(6))).toBe(false);
+  });
+
+  it("repart de la dernière confirmation plutôt que du signalement d'origine", () => {
+    expect(isProbablyStale(isoDaysAgo(30), isoMinutesAgo(0))).toBe(false);
+    expect(isProbablyStale(isoDaysAgo(30), isoDaysAgo(10))).toBe(true);
   });
 });
 

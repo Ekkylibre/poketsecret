@@ -96,3 +96,13 @@ export const SEUIL_DEMASQUAGE = 0;
 export const FENETRE_ANTI_COLLUSION_JOURS = 7;
 
 export const REPUTATION_DELTA = { confirmee: 1, invalidee: -2 } as const;
+
+// Distinct de STALE_BADGE_DAYS (lib/confidence.ts, 7 jours) : plus court, pour récompenser
+// une vigilance précoce plutôt que d'attendre que l'annonce soit visiblement "probablement
+// épuisée". Le montant reste modeste (échelle du plus petit geste déjà utilisé dans ce
+// système, voir REPUTATION_DELTA.confirmee) : borné par le quota de votes/jour existant
+// (DAILY_LIMITS), pas de nouveau quota séparé nécessaire — un seul vote par annonce et par
+// personne (contrainte unique sur votes_disponibilites) empêche aussi de se le faire
+// verser plusieurs fois sur la même annonce.
+export const RECONFIRMATION_STALE_DAYS = 3;
+export const RECONFIRMATION_DELTA = 1;

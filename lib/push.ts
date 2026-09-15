@@ -97,3 +97,54 @@ export async function notifyFollowersOfNewDisponibilite(
 
   await Promise.all([...userIds].map((userId) => sendPushToUser(userId, payload)));
 }
+
+/**
+ * Relance les abonnés d'une annonce qui n'a pas été reconfirmée depuis un moment (voir
+ * RELANCE_STALE_DAYS, app/api/cron/relance-annonces/route.ts qui appelle cette fonction) :
+ * même résolution "qui est concerné" que notifyFollowersOfNewDisponibilite (abonnés du
+ * produit ou du magasin, dédupliqués, jamais l'auteur), message différent puisqu'il ne
+ * s'agit pas d'une nouveauté mais d'une invitation à vérifier si c'est toujours le cas.
+ */
+export async function notifyFollowersOfStaleDisponibilite(
+  dispoId: string,
+  produitId: string,
+  storeId: string,
+  authorId: string,
+  langue: string
+): Promise<void> {
+  const [context, produitFollowers, storeFollowers] = await Promise.all([
+    sql`
+      select p.nom as produit_nom, p.extension, m.nom as magasin_nom
+      from public.disponibilites d
+      join public.produits p on p.id = d.produit_id
+      join public.magasins m on m.id = d.magasin_id
+      where d.id = ${dispoId}
+    `,
+    sql`
+      select utilisateur_id from public.produits_suivis
+      where produit_id = ${produitId} and utilisateur_id != ${authorId}
+        and (langue is null or ${langue} = any(langue))
+    `,
+    sql`
+      select utilisateur_id from public.magasins_suivis
+      where magasin_id = ${storeId} and utilisateur_id != ${authorId}
+    `,
+  ]);
+
+  const ctx = context[0] as { produit_nom: string; extension: string; magasin_nom: string } | undefined;
+  if (!ctx) return;
+
+  const userIds = new Set<string>([
+    ...(produitFollowers as { utilisateur_id: string }[]).map((r) => r.utilisateur_id),
+    ...(storeFollowers as { utilisateur_id: string }[]).map((r) => r.utilisateur_id),
+  ]);
+  if (userIds.size === 0) return;
+
+  const payload: PushPayload = {
+    title: `${ctx.produit_nom} ${ctx.extension} toujours disponible ?`,
+    body: `Personne n'a confirmé depuis un moment chez ${ctx.magasin_nom} — dis-le si tu passes par là.`,
+    url: `/?store=${storeId}&dispo=${dispoId}`,
+  };
+
+  await Promise.all([...userIds].map((userId) => sendPushToUser(userId, payload)));
+}

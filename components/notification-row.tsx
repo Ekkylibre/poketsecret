@@ -9,7 +9,7 @@ import { ConfidenceBadge } from "@/components/confidence-badge";
 import { TierBadge } from "@/components/tier-badge";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
-import { decayedConfidence, relativeTime } from "@/lib/confidence";
+import { decayedConfidence, isProbablyStale, relativeTime } from "@/lib/confidence";
 import { languageAbbreviations, natureStyles } from "@/lib/product-options";
 import type { AuthorInfo } from "@/lib/queries";
 import type { Availability, Product, Store } from "@/lib/types";
@@ -62,7 +62,12 @@ export function NotificationRow({
   // scroll vertical de la liste tout en gérant le swipe horizontal.
   const axisRef = useRef<"x" | "y" | null>(null);
 
-  const confidence = decayedConfidence(availability.baseConfidence, availability.reportedAt);
+  const confidence = decayedConfidence(
+    availability.baseConfidence,
+    availability.reportedAt,
+    availability.lastConfirmedAt
+  );
+  const stale = isProbablyStale(availability.reportedAt, availability.lastConfirmedAt);
 
   const editedById = availability.lastModifiedById;
   const authorId = editedById ?? availability.reportedById;
@@ -249,7 +254,11 @@ export function NotificationRow({
                 <ThumbsDown className="size-3" />
                 {availability.disputes}
               </span>
-              <ConfidenceBadge confidence={confidence} className="h-4 px-1 py-0 text-[10px] leading-none" />
+              <ConfidenceBadge
+                confidence={confidence}
+                stale={stale}
+                className="h-4 px-1 py-0 text-[10px] leading-none"
+              />
             </div>
           </div>
         </Card>

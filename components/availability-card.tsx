@@ -17,7 +17,7 @@ import { SignalerMenu } from "@/components/signaler-menu";
 import { TierBadge } from "@/components/tier-badge";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
-import { decayedConfidence, relativeTime } from "@/lib/confidence";
+import { decayedConfidence, isProbablyStale, relativeTime } from "@/lib/confidence";
 import { languageAbbreviations, natureStyles } from "@/lib/product-options";
 import type { AuthorInfo } from "@/lib/queries";
 import type { Availability, Product, Store } from "@/lib/types";
@@ -52,7 +52,12 @@ export function AvailabilityCard({
   authorPseudos: Record<string, AuthorInfo>;
   currentUser?: AuthorInfo;
 }) {
-  const confidence = decayedConfidence(availability.baseConfidence, availability.reportedAt);
+  const confidence = decayedConfidence(
+    availability.baseConfidence,
+    availability.reportedAt,
+    availability.lastConfirmedAt
+  );
+  const stale = isProbablyStale(availability.reportedAt, availability.lastConfirmedAt);
   const [isPending, startTransition] = useTransition();
   const [confirmations, setConfirmations] = useState(availability.confirmations);
   const [disputes, setDisputes] = useState(availability.disputes);
@@ -234,6 +239,7 @@ export function AvailabilityCard({
             </div>
             <ConfidenceBadge
               confidence={confidence}
+              stale={stale}
               className="ml-2 h-4 px-0.5 py-0 text-[10px] leading-none"
             />
             <SignalerMenu
