@@ -377,15 +377,39 @@ export async function suivreNouveauProduit(
       imageUrl || undefined
     );
     await sql`
-      insert into public.produits_suivis (utilisateur_id, produit_id, langue)
-      values (${user.id}, ${productId}, ${langues})
-      on conflict (utilisateur_id, produit_id) do update set langue = excluded.langue
+      insert into public.produits_suivis (utilisateur_id, produit_id, langue, via_extension)
+      values (${user.id}, ${productId}, ${langues}, true)
+      on conflict (utilisateur_id, produit_id)
+      do update set langue = excluded.langue, via_extension = true
     `;
   }
 
   revalidatePath("/");
   revalidatePath("/notifications");
   revalidatePath("/profil");
+  revalidatePath("/profil/extensions-suivies");
+  revalidatePath("/profil/produits-suivis");
+  return { success: true };
+}
+
+/** Retire le suivi de TOUS les types d'une extension d'un coup (voir suivreNouveauProduit
+ *  qui les crée ensemble) : un suivi individuel par type reste possible via
+ *  toggleFollowProduct, indépendant de celui-ci. */
+export async function unsuivreExtension(series: string, setName: string) {
+  const user = await requireSession();
+
+  await sql`
+    delete from public.produits_suivis
+    where utilisateur_id = ${user.id}
+      and produit_id in (
+        select id from public.produits where serie = ${series} and extension = ${setName}
+      )
+  `;
+
+  revalidatePath("/");
+  revalidatePath("/notifications");
+  revalidatePath("/profil");
+  revalidatePath("/profil/extensions-suivies");
   return { success: true };
 }
 

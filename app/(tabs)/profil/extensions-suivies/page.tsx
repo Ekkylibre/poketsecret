@@ -2,7 +2,7 @@ import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
-import { FollowProductButton } from "@/components/follow-product-button";
+import { UnfollowExtensionButton } from "@/components/unfollow-extension-button";
 import { Card } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { auth } from "@/lib/auth/server";
@@ -10,13 +10,11 @@ import { fetchFollowedProducts, splitFollowedProducts } from "@/lib/queries";
 
 export const dynamic = "force-dynamic";
 
-export default async function ProduitsSuivisPage() {
+export default async function ExtensionsSuiviesPage() {
   const { data: session } = await auth.getSession();
   if (!session?.user) redirect("/auth/sign-in");
 
-  // Seuls les suivis individuels (cloche sur une carte précise) : les extensions
-  // entières ont leur propre page (voir /profil/extensions-suivies).
-  const { individual: followedProducts } = splitFollowedProducts(
+  const { extensions: followedExtensions } = splitFollowedProducts(
     await fetchFollowedProducts(session.user.id)
   );
 
@@ -30,27 +28,28 @@ export default async function ProduitsSuivisPage() {
         >
           <ArrowLeft className="size-4" />
         </Link>
-        <h1 className="text-lg font-semibold">Produits suivis ({followedProducts.length})</h1>
+        <h1 className="text-lg font-semibold">Extensions suivies ({followedExtensions.length})</h1>
       </header>
 
       <div className="p-4">
-        {followedProducts.length === 0 ? (
-          <p className="text-muted-foreground text-sm">Aucun produit suivi pour l&apos;instant.</p>
+        {followedExtensions.length === 0 ? (
+          <p className="text-muted-foreground text-sm">Aucune extension suivie pour l&apos;instant.</p>
         ) : (
           <Card className="gap-0 px-3 py-1">
-            {followedProducts.map((product, i) => (
-              <div key={product.id}>
+            {followedExtensions.map((ext, i) => (
+              <div key={`${ext.series}|||${ext.setName}`}>
                 {i > 0 && <Separator />}
                 <div className="flex items-center justify-between gap-2 py-2.5">
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-medium">{product.name}</p>
+                    <p className="truncate text-sm font-medium">{ext.setName}</p>
                     <p className="text-muted-foreground truncate text-xs">
-                      {product.series} · {product.setName}
+                      {ext.series} · {ext.typeCount} type{ext.typeCount > 1 ? "s" : ""} suivi
+                      {ext.typeCount > 1 ? "s" : ""}
                     </p>
                   </div>
-                  <FollowProductButton
-                    productId={product.id}
-                    initialFollowed
+                  <UnfollowExtensionButton
+                    series={ext.series}
+                    setName={ext.setName}
                     className="bg-transparent backdrop-blur-none"
                   />
                 </div>

@@ -123,6 +123,64 @@ export interface FollowState {
   followedProductIds: string[];
 }
 
+export interface FollowedProductRow {
+  id: string;
+  name: string;
+  series: string;
+  setName: string;
+  /** true = suivi via le dialogue "Suivre un produit" (tous les types de l'extension
+   *  d'un coup, voir suivreNouveauProduit) ; false = suivi individuel via la cloche sur
+   *  une carte produit précise (toggleFollowProduct). Sert à distinguer, à l'affichage,
+   *  "je suis toute l'extension 151" de "je suis juste les Boosters 151". */
+  viaExtension: boolean;
+}
+
+export async function fetchFollowedProducts(userId: string): Promise<FollowedProductRow[]> {
+  const rows = await sql`
+    select p.id, p.nom, p.serie, p.extension, ps.via_extension
+    from public.produits_suivis ps
+    join public.produits p on p.id = ps.produit_id
+    where ps.utilisateur_id = ${userId}
+    order by p.nom
+  `;
+  return (rows as Record<string, unknown>[]).map((r) => ({
+    id: r.id as string,
+    name: r.nom as string,
+    series: (r.serie as string | null) ?? "",
+    setName: r.extension as string,
+    viaExtension: r.via_extension as boolean,
+  }));
+}
+
+export interface FollowedExtensionGroup {
+  series: string;
+  setName: string;
+  typeCount: number;
+}
+
+/** Sépare les suivis "extension entière" (regroupés, un item par série+extension) des
+ *  suivis individuels (un item par produit) — voir FollowedProductRow.viaExtension. */
+export function splitFollowedProducts(rows: FollowedProductRow[]): {
+  extensions: FollowedExtensionGroup[];
+  individual: FollowedProductRow[];
+} {
+  const extensionsByKey = new Map<string, FollowedExtensionGroup>();
+  const individual: FollowedProductRow[] = [];
+
+  for (const row of rows) {
+    if (!row.viaExtension) {
+      individual.push(row);
+      continue;
+    }
+    const key = `${row.series}|||${row.setName}`;
+    const existing = extensionsByKey.get(key);
+    if (existing) existing.typeCount += 1;
+    else extensionsByKey.set(key, { series: row.series, setName: row.setName, typeCount: 1 });
+  }
+
+  return { extensions: Array.from(extensionsByKey.values()), individual };
+}
+
 export async function fetchFollowState(userId: string): Promise<FollowState> {
   const [pinned, followedStores, followedProducts] = await Promise.all([
     sql`select magasin_id from public.magasins_epingles where utilisateur_id = ${userId}`,

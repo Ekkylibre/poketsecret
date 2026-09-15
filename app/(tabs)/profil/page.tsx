@@ -15,6 +15,7 @@ import { ModifierPseudoDialog } from "@/components/modifier-pseudo-dialog";
 import { NotificationNudgeBubble } from "@/components/notification-nudge-bubble";
 import { NotificationPermissionToggle } from "@/components/notification-permission-toggle";
 import { ReputationCard } from "@/components/reputation-card";
+import { UnfollowExtensionButton } from "@/components/unfollow-extension-button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -24,7 +25,7 @@ import { auth } from "@/lib/auth/server";
 import { sql } from "@/lib/db";
 import { mockCurrentUser } from "@/lib/mock-data";
 import { ensureProfil } from "@/lib/profil";
-import { fetchFollowState, fetchProducts, fetchStores } from "@/lib/queries";
+import { fetchFollowedProducts, fetchFollowState, fetchStores, splitFollowedProducts } from "@/lib/queries";
 import {
   countMagasinsCetteSemaine,
   countNouvellesAnnoncesToday,
@@ -111,24 +112,27 @@ export default async function ProfilPage({
 
   // Pas de session réelle (aperçu dev uniquement) : pas d'utilisateur réel à qui
   // rattacher des suivis, on n'a rien de plus honnête à montrer qu'une liste vide.
-  let followedProducts: Awaited<ReturnType<typeof fetchProducts>> = [];
+  let followedExtensions: ReturnType<typeof splitFollowedProducts>["extensions"] = [];
+  let followedIndividualProducts: ReturnType<typeof splitFollowedProducts>["individual"] = [];
   let followedStores: Awaited<ReturnType<typeof fetchStores>> = [];
   // Consommé aujourd'hui/cette semaine sur les quotas de paliers, affiché en "X/Y" dans
   // ReputationCard : sans ça, ces quotas ne vivaient que côté serveur, l'utilisateur
   // n'avait aucun moyen de savoir où il en est.
   let quotaUsage = { votes: 0, signalements: 0, nouvellesAnnonces: 0, magasins: 0 };
   if (session?.user) {
-    const [followState, allProducts, allStores, votesUsed, signalementsUsed, annoncesUsed, magasinsUsed] =
+    const [followState, followedProductRows, allStores, votesUsed, signalementsUsed, annoncesUsed, magasinsUsed] =
       await Promise.all([
         fetchFollowState(session.user.id),
-        fetchProducts(),
+        fetchFollowedProducts(session.user.id),
         fetchStores(),
         countVotesToday(session.user.id),
         countSignalementsToday(session.user.id),
         countNouvellesAnnoncesToday(session.user.id),
         countMagasinsCetteSemaine(session.user.id),
       ]);
-    followedProducts = allProducts.filter((p) => followState.followedProductIds.includes(p.id));
+    const split = splitFollowedProducts(followedProductRows);
+    followedExtensions = split.extensions;
+    followedIndividualProducts = split.individual;
     followedStores = allStores.filter((s) => followState.followedStoreIds.includes(s.id));
     quotaUsage = {
       votes: votesUsed,
@@ -314,13 +318,52 @@ export default async function ProfilPage({
 
         <div>
           <h2 className="text-muted-foreground mb-2 text-sm font-medium">
-            Produits suivis ({followedProducts.length})
+            Extensions suivies ({followedExtensions.length})
           </h2>
-          {followedProducts.length === 0 ? (
-            <p className="text-muted-foreground text-sm">Aucun produit suivi pour l&apos;instant.</p>
+          {followedExtensions.length === 0 ? (
+            <p className="text-muted-foreground text-sm">Aucune extension suivie pour l&apos;instant.</p>
           ) : (
             <Card className="gap-0 px-3 py-1">
-              {followedProducts.slice(0, FEATURED_LIMIT).map((product, i) => (
+              {followedExtensions.slice(0, FEATURED_LIMIT).map((ext, i) => (
+                <div key={`${ext.series}|||${ext.setName}`}>
+                  {i > 0 && <Separator />}
+                  <div className="flex items-center justify-between gap-2 py-2.5">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium">{ext.setName}</p>
+                      <p className="text-muted-foreground truncate text-xs">
+                        {ext.series} · {ext.typeCount} type{ext.typeCount > 1 ? "s" : ""} suivi
+                        {ext.typeCount > 1 ? "s" : ""}
+                      </p>
+                    </div>
+                    <UnfollowExtensionButton
+                      series={ext.series}
+                      setName={ext.setName}
+                      className="bg-transparent backdrop-blur-none"
+                    />
+                  </div>
+                </div>
+              ))}
+            </Card>
+          )}
+          {followedExtensions.length > FEATURED_LIMIT && (
+            <Link
+              href="/profil/extensions-suivies"
+              className="text-primary mt-2 block py-1 text-center text-sm font-medium underline underline-offset-2"
+            >
+              Voir tout ({followedExtensions.length})
+            </Link>
+          )}
+        </div>
+
+        <div>
+          <h2 className="text-muted-foreground mb-2 text-sm font-medium">
+            Produits suivis ({followedIndividualProducts.length})
+          </h2>
+          {followedIndividualProducts.length === 0 ? (
+            <p className="text-muted-foreground text-sm">Aucun produit suivi individuellement.</p>
+          ) : (
+            <Card className="gap-0 px-3 py-1">
+              {followedIndividualProducts.slice(0, FEATURED_LIMIT).map((product, i) => (
                 <div key={product.id}>
                   {i > 0 && <Separator />}
                   <div className="flex items-center justify-between gap-2 py-2.5">
@@ -340,12 +383,12 @@ export default async function ProfilPage({
               ))}
             </Card>
           )}
-          {followedProducts.length > FEATURED_LIMIT && (
+          {followedIndividualProducts.length > FEATURED_LIMIT && (
             <Link
               href="/profil/produits-suivis"
               className="text-primary mt-2 block py-1 text-center text-sm font-medium underline underline-offset-2"
             >
-              Voir tout ({followedProducts.length})
+              Voir tout ({followedIndividualProducts.length})
             </Link>
           )}
         </div>
