@@ -191,7 +191,10 @@ function StoreCard({
               dans le coin au lieu d'occuper l'espace disponible. */}
           <div className="flex min-w-0 flex-1 flex-col justify-center gap-0.5 py-3 pl-3">
             <p className="truncate text-sm font-semibold">{store.name}</p>
-            <p className="text-muted-foreground truncate text-xs">{formatStoreAddress(store)}</p>
+            {/* line-clamp plutôt que truncate : sur un petit écran, la colonne de boutons à
+                droite laisse peu de place et un truncate coupait souvent le code postal et
+                la ville (info utile, contrairement au nom déjà répété juste au-dessus). */}
+            <p className="text-muted-foreground line-clamp-2 text-xs">{formatStoreAddress(store)}</p>
             <p className="text-muted-foreground/70 flex items-center gap-1 text-xs">
               <Clock className="size-3 shrink-0" />
               {hoursToday ? formatDayHours(hoursToday) : "Horaires non renseignés"}

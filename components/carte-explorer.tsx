@@ -14,7 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
 import type { AuthorInfo } from "@/lib/queries";
 import type { Store } from "@/lib/types";
-import { formatStoreAddress } from "@/lib/utils";
+import { cn, formatStoreAddress } from "@/lib/utils";
 
 import "mapbox-gl/dist/mapbox-gl.css";
 
@@ -396,18 +396,23 @@ export function CarteExplorer({
         </Map>
       </div>
 
-      <div className="flex min-h-80 gap-3">
+      {/* flex-col sur mobile : côte à côte (sm:flex-row), les deux cartes finissent trop
+          étroites sur un petit écran (formulaires et horaires tronqués). Empilées, chacune
+          profite de toute la largeur ; la carte recherche/filtres se cache alors sur mobile
+          quand la fiche magasin est ouverte (peu utile en même temps, et ça évite de pousser
+          le tout hors de l'écran vu que le parent est en overflow-hidden). */}
+      <div className="flex flex-col gap-3 sm:min-h-80 sm:flex-row">
         {detailStore && (
           <StoreInfoPanel
             store={detailStore}
             onClose={() => setDetailStoreId(null)}
-            className="min-w-0 flex-1 basis-0"
+            className="w-full min-w-0 sm:flex-1 sm:basis-0"
             authorPseudos={authorPseudos}
             currentUser={currentUser}
           />
         )}
 
-        <Card className="min-w-0 flex-1 basis-0 gap-3 p-4">
+        <Card className={cn("min-w-0 gap-3 p-4 sm:flex-1 sm:basis-0", detailStore && "hidden sm:flex")}>
           <form onSubmit={handleStoreSearch} className="relative">
             <Search className="text-muted-foreground absolute top-1/2 left-3 size-4 -translate-y-1/2" />
             <Input
