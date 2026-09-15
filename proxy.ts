@@ -5,6 +5,12 @@ import type { NextRequest } from "next/server";
 // pour Mapbox, lib/tcgdex.ts + le champ imageUrl des produits pour les logos TCGdex, et
 // lib/blob.ts pour les photos uploadées). Tout le reste est chargé depuis 'self'.
 const MAPBOX_HOSTS = "https://api.mapbox.com https://events.mapbox.com https://*.tiles.mapbox.com";
+// API Adresse (BAN, IGN/Etalab) : autocomplétion utilisée par nouveau-magasin-dialog.tsx
+// pour résoudre une adresse en coordonnées. Sans cette entrée, le navigateur bloque
+// silencieusement (aucune erreur visible) chaque appel fetch() vers ce domaine — aucune
+// suggestion n'apparaît jamais, ce qui pousse à taper l'adresse à la main et créer un
+// magasin sans coordonnées valides (constaté en conditions réelles avant ce correctif).
+const ADRESSE_API_HOST = "https://api-adresse.data.gouv.fr";
 
 function buildCsp(nonce: string): string {
   const isDev = process.env.NODE_ENV !== "production";
@@ -20,7 +26,7 @@ function buildCsp(nonce: string): string {
     "style-src 'self' 'unsafe-inline'",
     `img-src 'self' data: blob: https://assets.tcgdex.net https://*.public.blob.vercel-storage.com ${MAPBOX_HOSTS}`,
     "font-src 'self' data:",
-    `connect-src 'self' ${MAPBOX_HOSTS}${isDev ? " ws://localhost:* http://localhost:*" : ""}`,
+    `connect-src 'self' ${MAPBOX_HOSTS} ${ADRESSE_API_HOST}${isDev ? " ws://localhost:* http://localhost:*" : ""}`,
     // mapbox-gl exécute ses workers depuis des blob: URLs.
     "worker-src 'self' blob:",
     "frame-ancestors 'self'",

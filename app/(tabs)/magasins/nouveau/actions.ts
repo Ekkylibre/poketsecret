@@ -48,6 +48,16 @@ export async function creerMagasin(
   if (phone && !new RegExp(PHONE_PATTERN).test(phone)) {
     return { error: "Numéro de téléphone invalide." };
   }
+  // Le client bloque déjà ce cas (voir goToStep2 dans nouveau-magasin-dialog.tsx) tant que
+  // l'adresse n'est pas choisie dans les suggestions : revérifié ici plutôt que de faire
+  // confiance au seul client, sans quoi une requête rejouée directement (hors UI) pourrait
+  // encore créer un magasin à (0, 0) — invisible sur la carte et dans toute recherche par
+  // distance, comme constaté en conditions réelles avant ce correctif.
+  if (!Number.isFinite(lat) || !Number.isFinite(lng) || (lat === 0 && lng === 0)) {
+    return {
+      error: "Sélectionne une adresse dans la liste de suggestions pour localiser le magasin sur la carte.",
+    };
+  }
 
   const tier = tierOf(await getReputation(user.id));
   const cetteSemaine = await countMagasinsCetteSemaine(user.id);
@@ -58,17 +68,13 @@ export async function creerMagasin(
   const hours = parseHoursFromFormData(formData);
   const hasHours = Object.keys(hours).length > 0;
 
-  // Repli sur (0,0) si le magasin est ajouté sans passer par le pin sur la carte.
-  const latValue = Number.isFinite(lat) && lat !== 0 ? lat : 0;
-  const lngValue = Number.isFinite(lng) && lng !== 0 ? lng : 0;
-
   const inserted = await withQuotaLock<{ id: string }>(
     user.id,
     "nouveau-magasin",
     sql`
       insert into public.magasins (nom, adresse, code_postal, ville, latitude, longitude, telephone, horaires, cree_par)
       select
-        ${name}, ${address}, ${postalCode || null}, ${city}, ${latValue}, ${lngValue},
+        ${name}, ${address}, ${postalCode || null}, ${city}, ${lat}, ${lng},
         ${phone || null}, ${hasHours ? JSON.stringify(hours) : null}::jsonb, ${user.id}
       where (
         select count(*) from public.magasins where cree_par = ${user.id} and cree_le >= now() - interval '7 days'

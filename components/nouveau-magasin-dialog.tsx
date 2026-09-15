@@ -1,11 +1,13 @@
 "use client";
 
 import {
+  Check,
   Flag,
   MapPin,
   PartyPopper,
   Phone,
   Plus,
+  Search,
   SquarePen,
   ThumbsDown,
   ThumbsUp,
@@ -26,6 +28,7 @@ import { AsYouType } from "libphonenumber-js";
 import { creerMagasin, modifierMagasin } from "@/app/(tabs)/magasins/nouveau/actions";
 import { ConfidenceBadge } from "@/components/confidence-badge";
 import { Logo } from "@/components/logo";
+import { StoreLocationPicker } from "@/components/store-location-picker";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -45,6 +48,10 @@ import { dayLabels, formatDayHours, parseHoursFromFormData, weekdayOrder } from 
 import type { AuthorInfo } from "@/lib/queries";
 import type { Store, StoreHours, Weekday } from "@/lib/types";
 import { cn } from "@/lib/utils";
+
+// Score de confiance minimum (API Adresse, 0-1) en dessous duquel le meilleur résultat
+// est traité comme "pas de vraie correspondance" — voir l'effet de recherche plus bas.
+const ADDRESS_MATCH_MIN_SCORE = 0.6;
 
 const days: { key: Weekday; label: string }[] = [
   { key: "lundi", label: "Lundi" },
@@ -180,6 +187,28 @@ function MagasinDialog({
   );
   const [suggestions, setSuggestions] = useState<AddressSuggestion[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
+  // Vrai une fois qu'une recherche (>= 3 caractères) est allée jusqu'au bout sans renvoyer
+  // le moindre résultat (adresse sans numéro, rue trop récente pour la Base Adresse
+  // Nationale...) : distinct de "pas encore cherché", pour ne montrer l'avertissement
+  // "utilise la carte" qu'une fois la recherche réellement infructueuse.
+  const [searchedNoResults, setSearchedNoResults] = useState(false);
+  // Onglet actif pour localiser le magasin : les deux options sont visibles d'emblée,
+  // côte à côte, pas un bouton "carte" caché sous le champ adresse (moins découvrable).
+  // Le champ adresse et la carte restent tous les deux montés en permanence, seul leur
+  // affichage bascule (`hidden`) : l'onglet inactif ne doit jamais faire disparaître la
+  // valeur de `name="address"` du FormData au moment de la soumission.
+  const [locationMethod, setLocationMethod] = useState<"adresse" | "carte">("adresse");
+  // "manual" dès que l'utilisateur tape lui-même dans le champ ou choisit une suggestion :
+  // un clic ultérieur sur la carte (pour ajuster le pin) ne doit alors plus écraser ce
+  // texte. Reste "map" (ou null) tant que adresse/ville ne viennent que d'un géocodage
+  // inversé automatique : dans ce cas, chaque nouveau clic doit au contraire pouvoir les
+  // remettre à jour, sinon déplacer le pin laisse une adresse périmée par rapport au point
+  // réellement sélectionné (l'ajustement n'aurait alors d'effet qu'au tout premier clic).
+  // N'affecte jamais le rendu (jamais lu en JSX), juste utilisé pour arbitrer une
+  // écriture asynchrone plus bas : une ref suffit, pas besoin de re-render dessus.
+  const addressSourceRef = useRef<"manual" | "map" | null>(
+    store && (store.lat !== 0 || store.lng !== 0) ? "manual" : null
+  );
   const [closedDays, setClosedDays] = useState<Partial<Record<Weekday, boolean>>>(() =>
     initialClosedDays(store)
   );
@@ -200,10 +229,37 @@ function MagasinDialog({
   // effet classique n'a alors plus jamais l'occasion de re-mesurer. Le callback ref, lui,
   // est rappelé par React à chaque fois qu'il (ré)attache le noeud, donc toujours à jour.
   const [trackHeight, setTrackHeight] = useState<number | undefined>(undefined);
+  // Conservé à part de measureStep (qui ne (re)déclenche que sur montage/démontage du
+  // noeud, pas sur un simple changement de son contenu) : afficher/masquer la carte ou
+  // l'avertissement fait grandir/rétrécir l'étape 1 sans que son noeud ne change, donc
+  // sans ça trackHeight resterait périmé et couperait la carte.
+  const step1ElRef = useRef<HTMLDivElement | null>(null);
 
   function measureStep(el: HTMLDivElement | null, stepNumber: 1 | 2 | 3) {
+    if (stepNumber === 1) step1ElRef.current = el;
     if (el && step === stepNumber) setTrackHeight(el.offsetHeight);
   }
+
+  useEffect(() => {
+    if (step === 1 && step1ElRef.current) setTrackHeight(step1ElRef.current.offsetHeight);
+  }, [step, locationMethod, searchedNoResults]);
+
+  // ResizeObserver plutôt qu'une dépendance de plus dans l'effet ci-dessus : la carte
+  // (StoreLocationPicker) et le texte "Adresse détectée" apparaissent après un clic sur
+  // la carte suivi d'un géocodage inversé ASYNCHRONE (coords, puis un peu plus tard
+  // adresse/ville une fois la requête résolue) — la carte se retrouvait coupée par la
+  // hauteur figée (overflow-hidden) car aucune des dépendances ci-dessus ne changeait à
+  // ce moment-là. Un ResizeObserver capture tout changement de hauteur réel du contenu,
+  // quelle qu'en soit la cause, sans avoir à réénumérer chaque état qui peut y contribuer.
+  useEffect(() => {
+    const el = step1ElRef.current;
+    if (!el) return;
+    const observer = new ResizeObserver((entries) => {
+      if (step === 1) setTrackHeight(entries[0].contentRect.height);
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [step]);
 
   function resetForm() {
     setStep(1);
@@ -218,6 +274,9 @@ function MagasinDialog({
     setCoords(store && (store.lat !== 0 || store.lng !== 0) ? { lat: store.lat, lng: store.lng } : null);
     setSuggestions([]);
     setShowSuggestions(false);
+    setSearchedNoResults(false);
+    setLocationMethod("adresse");
+    addressSourceRef.current = store && (store.lat !== 0 || store.lng !== 0) ? "manual" : null;
     setClosedDays(initialClosedDays(store));
     setClosedPeriods(initialClosedPeriods(store));
     setPreviewPhone(store?.phone ?? "");
@@ -234,6 +293,19 @@ function MagasinDialog({
 
     if (!nameVal || !addressVal || !cityVal) {
       setStepError("Nom, adresse et ville sont obligatoires.");
+      return;
+    }
+    // Uniquement à la création : en édition, coords peut rester tel quel (les coordonnées
+    // déjà enregistrées du magasin) même si l'adresse n'a pas été retouchée, voir l'init de
+    // `coords` plus haut. Sans ce garde-fou, un magasin peut se créer sans jamais avoir
+    // sélectionné de suggestion (juste tapé l'adresse à la main sans cliquer dessus, ou
+    // aucune suggestion pertinente trouvée) : lat/lng partent alors à (0, 0), un magasin
+    // qui existe en base mais n'apparaît jamais sur la carte ni dans aucune recherche par
+    // distance — constaté en conditions réelles sur deux magasins créés ainsi.
+    if (mode === "create" && !coords) {
+      setStepError(
+        "Sélectionne une adresse dans la liste de suggestions, ou place le magasin directement sur la carte."
+      );
       return;
     }
     setStepError(null);
@@ -307,22 +379,30 @@ function MagasinDialog({
           { signal: controller.signal }
         );
         const data = await res.json();
+        const features = (data.features ?? []) as {
+          properties: { name: string; city: string; postcode: string; score: number };
+          geometry: { coordinates: [number, number] };
+        }[];
         setSuggestions(
-          (data.features ?? []).map(
-            (f: {
-              properties: { name: string; city: string; postcode: string };
-              geometry: { coordinates: [number, number] };
-            }) => ({
-              label: f.properties.name,
-              city: f.properties.city,
-              postalCode: f.properties.postcode,
-              lat: f.geometry.coordinates[1],
-              lng: f.geometry.coordinates[0],
-            })
-          )
+          features.map((f) => ({
+            label: f.properties.name,
+            city: f.properties.city,
+            postalCode: f.properties.postcode,
+            lat: f.geometry.coordinates[1],
+            lng: f.geometry.coordinates[0],
+          }))
         );
+        // La BAN renvoie presque toujours QUELQUE CHOSE (recherche floue par tokens), même
+        // pour une adresse qu'elle ne connaît pas vraiment (numéro absent, rue trop
+        // récente...) : un score faible sur son meilleur résultat est un signal bien plus
+        // fiable que "zéro résultat" pour détecter ce cas — c'est ce qui s'est produit en
+        // conditions réelles ("Rue Jean Chaptal, Castres" ne renvoyait qu'un score ~0.56
+        // sur une rue différente, jamais zéro résultat).
+        const bestScore = features[0]?.properties.score ?? 0;
+        setSearchedNoResults(bestScore < ADDRESS_MATCH_MIN_SCORE);
       } catch {
-        // Requête annulée ou API indisponible : l'utilisateur peut toujours saisir à la main.
+        // Requête annulée ou API indisponible : pas la faute de l'utilisateur, on ne
+        // montre pas l'avertissement "adresse introuvable" dans ce cas précis.
       }
     }, 300);
 
@@ -339,6 +419,41 @@ function MagasinDialog({
     setCoords({ lat: s.lat, lng: s.lng });
     setSuggestions([]);
     setShowSuggestions(false);
+    setSearchedNoResults(false);
+    // Choix explicite de l'utilisateur : un clic ultérieur sur la carte pour affiner le
+    // pin ne doit plus écraser ce texte (voir pickOnMap).
+    addressSourceRef.current = "manual";
+  }
+
+  // Nom, adresse et ville restent obligatoires (voir goToStep2) même en plaçant le pin
+  // sur la carte : sans reverse-geocoding, l'utilisateur devrait retaper la ville à la
+  // main après coup, alors que le clic sur la carte donne déjà tout ce qu'il faut pour
+  // la déduire. N'écrase le texte que s'il ne vient PAS d'une saisie manuelle (voir
+  // addressSourceRef) : un premier clic remplit adresse/ville vides, et un clic suivant
+  // pour ajuster le pin peut donc les remettre à jour lui aussi — sans ce garde-fou basé
+  // sur la source plutôt que "vide ou pas", seul le tout premier clic aurait d'effet,
+  // laissant une adresse périmée derrière chaque ajustement suivant du pin.
+  function pickOnMap(next: { lat: number; lng: number }) {
+    setCoords(next);
+    setSearchedNoResults(false);
+
+    fetch(`https://api-adresse.data.gouv.fr/reverse/?lon=${next.lng}&lat=${next.lat}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (addressSourceRef.current === "manual") return;
+        const feature = data.features?.[0]?.properties as
+          | { name?: string; city?: string; postcode?: string }
+          | undefined;
+        if (!feature) return;
+        addressSourceRef.current = "map";
+        setAddressQuery(feature.name ?? "");
+        setCity(feature.city ?? "");
+        setPostalCode(feature.postcode ?? "");
+      })
+      .catch(() => {
+        // Best effort : la position reste utilisable même sans reverse-geocoding, il
+        // faudra juste renseigner ville/adresse à la main dans ce cas.
+      });
   }
 
   return (
@@ -443,82 +558,174 @@ function MagasinDialog({
               </div>
             )}
 
-            <div className="relative flex flex-col gap-1.5">
-              <label htmlFor="address" className="text-sm font-medium">
-                Adresse
-              </label>
-              <Input
-                id="address"
-                name="address"
-                autoComplete="off"
-                value={addressQuery}
-                onChange={(e) => {
-                  setAddressQuery(e.target.value);
-                  setCoords(null);
-                  if (e.target.value.trim().length < 3) setSuggestions([]);
-                }}
-                onFocus={() => setShowSuggestions(true)}
-                onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
-                placeholder="12 rue de la République"
-              />
-              {showSuggestions && suggestions.length > 0 && (
-                <ul className="bg-card absolute top-full z-10 mt-1 w-full overflow-hidden rounded-md border shadow-md">
-                  {suggestions.map((s) => (
-                    <li key={`${s.label}-${s.city}`}>
-                      <button
-                        type="button"
-                        className="hover:bg-accent flex w-full flex-col items-start px-3 py-2 text-left text-sm"
-                        onClick={() => selectSuggestion(s)}
-                      >
-                        <span>{s.label}</span>
-                        <span className="text-muted-foreground text-xs">{s.city}</span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
+            <div className="flex flex-col gap-1.5">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-sm font-medium">Localisation</span>
+                {coords && (
+                  <span className="text-muted-foreground flex items-center gap-1 text-xs">
+                    <Check className="text-primary size-3.5" />
+                    Position définie
+                  </span>
+                )}
+              </div>
+
+              {/* Les deux façons de localiser le magasin sont visibles d'emblée, côte à
+                  côte : un bouton "carte" caché sous le champ adresse se découvre trop
+                  tard pour quelqu'un dont l'adresse n'est jamais dans les suggestions. */}
+              <div className="bg-muted grid grid-cols-2 gap-1 rounded-md p-1">
+                <button
+                  type="button"
+                  onClick={() => setLocationMethod("adresse")}
+                  className={cn(
+                    "flex items-center justify-center gap-1.5 rounded-sm py-1.5 text-sm font-medium transition-colors",
+                    locationMethod === "adresse"
+                      ? "bg-background text-foreground shadow-xs"
+                      : "text-muted-foreground"
+                  )}
+                >
+                  <Search className="size-3.5" />
+                  Saisir l&apos;adresse
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setLocationMethod("carte")}
+                  className={cn(
+                    "flex items-center justify-center gap-1.5 rounded-sm py-1.5 text-sm font-medium transition-colors",
+                    locationMethod === "carte"
+                      ? "bg-background text-foreground shadow-xs"
+                      : "text-muted-foreground"
+                  )}
+                >
+                  <MapPin className="size-3.5" />
+                  Placer sur la carte
+                </button>
+              </div>
+
+              {/* hidden plutôt qu'un rendu conditionnel : le champ doit rester monté (donc
+                  présent dans le FormData à la soumission) même quand l'onglet Carte est
+                  affiché, sans quoi la valeur déjà saisie disparaîtrait du formulaire. */}
+              <div className="relative flex flex-col gap-1.5" hidden={locationMethod !== "adresse"}>
+                <Input
+                  id="address"
+                  name="address"
+                  autoComplete="off"
+                  value={addressQuery}
+                  onChange={(e) => {
+                    setAddressQuery(e.target.value);
+                    setCoords(null);
+                    setSearchedNoResults(false);
+                    addressSourceRef.current = e.target.value.trim() ? "manual" : null;
+                    if (e.target.value.trim().length < 3) setSuggestions([]);
+                  }}
+                  onFocus={() => setShowSuggestions(true)}
+                  onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
+                  placeholder="12 rue de la République"
+                />
+                {showSuggestions && suggestions.length > 0 && (
+                  <ul className="bg-card absolute top-full z-10 mt-1 w-full overflow-hidden rounded-md border shadow-md">
+                    {suggestions.map((s) => (
+                      <li key={`${s.label}-${s.city}`}>
+                        <button
+                          type="button"
+                          className="hover:bg-accent flex w-full flex-col items-start px-3 py-2 text-left text-sm"
+                          onClick={() => selectSuggestion(s)}
+                        >
+                          <span>{s.label}</span>
+                          <span className="text-muted-foreground text-xs">{s.city}</span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {searchedNoResults && !coords && (
+                  <p className="flex items-start gap-1.5 text-xs text-amber-500">
+                    <TriangleAlert className="mt-0.5 size-3.5 shrink-0" />
+                    Adresse introuvable dans les suggestions (numéro absent, rue trop
+                    récente...).{" "}
+                    <button
+                      type="button"
+                      onClick={() => setLocationMethod("carte")}
+                      className="underline underline-offset-2"
+                    >
+                      Place-le sur la carte
+                    </button>{" "}
+                    à la main.
+                  </p>
+                )}
+              </div>
+
+              {/* Contrairement au champ adresse (voir plus haut), démonté plutôt que
+                  simplement masqué avec `hidden` : `coords` vit dans CE composant parent,
+                  pas dans StoreLocationPicker, donc rien à perdre en le démontant. Et
+                  Mapbox DOIT être monté dans un conteneur déjà visible et correctement
+                  dimensionné — initialisé pendant que `hidden` (donc display:none) le
+                  mesure à 0×0, il se rabat silencieusement sur une taille par défaut
+                  (400×300) et ne se redimensionne jamais tout seul par la suite, même une
+                  fois l'onglet affiché : la carte semblait alors ne pas remplir son
+                  conteneur (constaté en conditions réelles). */}
+              {locationMethod === "carte" && (
+                <div className="flex flex-col gap-1.5">
+                  <StoreLocationPicker coords={coords} onPick={pickOnMap} />
+                  {coords && (city.trim() || addressQuery.trim()) && (
+                    <p className="text-muted-foreground text-center text-xs">
+                      Adresse détectée : {[addressQuery, city].filter(Boolean).join(", ") || "—"}
+                    </p>
+                  )}
+                </div>
               )}
             </div>
 
-            <div className="flex gap-3">
-              <div className="flex w-24 shrink-0 flex-col gap-1.5">
-                <label htmlFor="postalCode" className="text-sm font-medium">
-                  Code postal
-                </label>
-                <Input
-                  id="postalCode"
-                  name="postalCode"
-                  inputMode="numeric"
-                  value={postalCode}
-                  onChange={(e) => setPostalCode(e.target.value)}
-                  placeholder="69002"
-                />
+            {/* Masqués (pas retirés : name="postalCode"/"city"/"phone" doivent rester dans
+                le FormData) pendant que l'onglet Carte est actif — la carte, déjà haute
+                (voir StoreLocationPicker), plus ces trois champs dépassait la hauteur
+                utilisable du dialogue (max-h-[90vh]) sur un écran de téléphone standard.
+                Le dialogue devenait alors scrollable, mais sans indicateur visible (voir
+                DialogContent, "no-scrollbar") : ça donnait l'impression que tout
+                s'arrêtait net juste après la carte plutôt que d'inviter à faire défiler.
+                Code postal/ville restent consultables via "Adresse détectée" au-dessus ;
+                revenir sur l'onglet "Saisir l'adresse" les réaffiche pour les modifier. */}
+            <div hidden={locationMethod === "carte"} className="flex flex-col gap-4">
+              <div className="flex gap-3">
+                <div className="flex w-24 shrink-0 flex-col gap-1.5">
+                  <label htmlFor="postalCode" className="text-sm font-medium">
+                    Code postal
+                  </label>
+                  <Input
+                    id="postalCode"
+                    name="postalCode"
+                    inputMode="numeric"
+                    value={postalCode}
+                    onChange={(e) => setPostalCode(e.target.value)}
+                    placeholder="69002"
+                  />
+                </div>
+                <div className="flex flex-1 flex-col gap-1.5">
+                  <label htmlFor="city" className="text-sm font-medium">
+                    Ville
+                  </label>
+                  <Input
+                    id="city"
+                    name="city"
+                    value={city}
+                    onChange={(e) => setCity(e.target.value)}
+                    placeholder="Lyon"
+                  />
+                </div>
               </div>
-              <div className="flex flex-1 flex-col gap-1.5">
-                <label htmlFor="city" className="text-sm font-medium">
-                  Ville
-                </label>
-                <Input
-                  id="city"
-                  name="city"
-                  value={city}
-                  onChange={(e) => setCity(e.target.value)}
-                  placeholder="Lyon"
-                />
-              </div>
-            </div>
 
-            <div className="flex flex-col gap-1.5">
-              <label htmlFor="phone" className="text-sm font-medium">
-                Téléphone (optionnel)
-              </label>
-              <Input
-                id="phone"
-                name="phone"
-                type="tel"
-                value={phone}
-                onChange={handlePhoneChange}
-                placeholder="04 78 00 00 00"
-              />
+              <div className="flex flex-col gap-1.5">
+                <label htmlFor="phone" className="text-sm font-medium">
+                  Téléphone (optionnel)
+                </label>
+                <Input
+                  id="phone"
+                  name="phone"
+                  type="tel"
+                  value={phone}
+                  onChange={handlePhoneChange}
+                  placeholder="04 78 00 00 00"
+                />
+              </div>
             </div>
 
             {stepError && <p className="text-destructive text-sm">{stepError}</p>}
@@ -717,7 +924,20 @@ function MagasinDialog({
             </div>
           </div>
 
-          <DialogFooter className={showSuccess ? "hidden" : undefined}>
+          {/* sticky + marges négatives pour revenir aux bords du dialogue (qui a p-5, voir
+              DialogContent) : sur un écran/une fenêtre bas(se), le contenu de l'étape (en
+              particulier la carte manuelle, assez haute) peut dépasser la hauteur visible
+              du dialogue. Sans ça, "Annuler"/"Suivant" scrollaient hors champ avec le
+              reste du contenu, sans indicateur visible (DialogContent masque sa barre de
+              défilement) — impossible de deviner qu'il fallait faire défiler pour les
+              atteindre. Toujours ancré en bas désormais, quelle que soit la hauteur du
+              contenu au-dessus. */}
+          <DialogFooter
+            className={cn(
+              "bg-card sticky bottom-0 -mx-5 -mb-5 px-5 pt-3 pb-5",
+              showSuccess && "hidden"
+            )}
+          >
             {step === 1 ? (
               <div key="step-1" className="flex gap-2">
                 <DialogClose asChild>
