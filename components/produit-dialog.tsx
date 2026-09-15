@@ -73,18 +73,40 @@ const natureOptions: AvailabilityNature[] = ["Nouveau", "Promo", "Réassort"];
  *  du panneau de recadrage (qui n'est monté que si l'utilisateur l'ouvre). Sert de
  *  compression automatique dès la prise de photo : sans ça, une photo de smartphone non
  *  recadrée manuellement partait brute (plusieurs Mo) et dépassait la limite des Server
- *  Actions Next.js (413 en prod, voir next.config.ts). */
-function centeredSquareJpeg(img: HTMLImageElement, outputSize = 720, quality = 0.9): string | null {
-  const { naturalWidth: w, naturalHeight: h } = img;
-  if (!w || !h) return null;
-  const srcSize = Math.min(w, h);
-  const canvas = document.createElement("canvas");
-  canvas.width = outputSize;
-  canvas.height = outputSize;
-  const ctx = canvas.getContext("2d");
-  if (!ctx) return null;
-  ctx.drawImage(img, (w - srcSize) / 2, (h - srcSize) / 2, srcSize, srcSize, 0, 0, outputSize, outputSize);
-  return canvas.toDataURL("image/jpeg", quality);
+ *  Actions Next.js (413 en prod, voir next.config.ts).
+ *
+ *  Passe par createImageBitmap(file, ...) plutôt que new Image()+canvas à pleine
+ *  résolution : dessiner directement une photo de smartphone (12+ Mpx) dans un canvas
+ *  peut produire un rendu **noir silencieux** sur mobile (limite mémoire de Safari iOS
+ *  notamment, sans la moindre erreur JS) — createImageBitmap délègue le décodage et le
+ *  redimensionnement au navigateur, qui sait gérer ça sans jamais matérialiser l'image
+ *  source en pleine résolution dans un canvas. */
+async function centeredSquareJpeg(file: File, outputSize = 720, quality = 0.9): Promise<string | null> {
+  try {
+    const probe = await createImageBitmap(file);
+    const srcSize = Math.min(probe.width, probe.height);
+    const sx = (probe.width - srcSize) / 2;
+    const sy = (probe.height - srcSize) / 2;
+    probe.close();
+
+    const bitmap = await createImageBitmap(file, sx, sy, srcSize, srcSize, {
+      resizeWidth: outputSize,
+      resizeHeight: outputSize,
+      resizeQuality: "high",
+    });
+    const canvas = document.createElement("canvas");
+    canvas.width = outputSize;
+    canvas.height = outputSize;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return null;
+    ctx.drawImage(bitmap, 0, 0);
+    bitmap.close();
+    return canvas.toDataURL("image/jpeg", quality);
+  } catch {
+    // Format non décodable par ce navigateur (rare) : on retombe sur le fichier brut
+    // (voir l'input caché plus bas), plutôt que de bloquer la publication.
+    return null;
+  }
 }
 
 function ProduitDialog({
@@ -368,19 +390,21 @@ function ProduitDialog({
   function handlePhotoChange(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      const dataUrl = reader.result as string;
-      setPhotoDataUrl(dataUrl);
-      resetCrop();
 
-      // Compression par défaut, sans attendre que l'utilisateur ouvre le recadrage
-      // manuel : sinon une photo de smartphone jamais recadrée part brute (voir
-      // centeredSquareJpeg ci-dessus).
-      const img = new Image();
-      img.onload = () => setCroppedPhotoDataUrl(centeredSquareJpeg(img));
-      img.src = dataUrl;
-    };
+    // resetCrop() tout de suite, en synchrone : les deux opérations ci-dessous sont
+    // asynchrones et concurrentes (compression vs relecture brute pour l'aperçu), sans
+    // ordre d'arrivée garanti — resetCrop() APRÈS l'une d'elles risquerait d'effacer un
+    // résultat de compression déjà posé par l'autre.
+    resetCrop();
+
+    // Compression par défaut lancée directement sur le fichier (pas sur la data URL une
+    // fois relue) : sans attendre que l'utilisateur ouvre le recadrage manuel, sinon une
+    // photo de smartphone jamais recadrée part brute (voir centeredSquareJpeg ci-dessus).
+    // Indépendant du FileReader ci-dessous, qui ne sert qu'à afficher l'aperçu brut.
+    centeredSquareJpeg(file).then(setCroppedPhotoDataUrl);
+
+    const reader = new FileReader();
+    reader.onload = () => setPhotoDataUrl(reader.result as string);
     reader.readAsDataURL(file);
   }
 
@@ -719,8 +743,10 @@ function ProduitDialog({
               {/* Classes copiées à l'identique d'AvailabilityCard (photo + bloc infos) pour que
                   l'aperçu ait les mêmes proportions que la vraie card. Largeur réduite à la
                   moitié du dialogue pour reproduire sa taille réelle dans la grille à 2 colonnes,
-                  au lieu d'étirer la photo sur toute la largeur du dialogue. */}
-              <div className="relative mx-auto w-1/2 min-w-[140px]">
+                  au lieu d'étirer la photo sur toute la largeur du dialogue — sauf en cours de
+                  recadrage, où cette demi-largeur écrasait les boutons Annuler/Valider sur
+                  petit écran : on utilise alors toute la largeur disponible. */}
+              <div className={cn("relative mx-auto min-w-[140px]", isCropping ? "w-full max-w-xs" : "w-1/2")}>
               <Card className={cn("h-full gap-1.5 p-2", showSuccess && "animate-card-launch")}>
                 <div
                   ref={cropContainerRef}
