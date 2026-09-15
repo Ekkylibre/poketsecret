@@ -1,0 +1,25 @@
+name: Import produits Pokémon TCG
+
+# Le plan Hobby de Vercel limite les Cron Jobs à 1 exécution/jour à ±59 min près (voir
+# app/api/cron/import-produits + vercel.json, qui reste en place comme filet de sécurité
+# quotidien). GitHub Actions n'a pas cette limite et ce repo est public (minutes gratuites
+# en illimité) : ce workflow rappelle la même route toutes les 3h pour réduire le délai
+# entre la sortie d'une extension côté TCGdex/pokemontcgapi.com et son arrivée dans le
+# catalogue, sans attendre le prochain passage du cron Vercel du lendemain.
+#
+# Si ce repo reste 60 jours sans commit, GitHub désactive automatiquement les workflows
+# planifiés : le cron Vercel quotidien continue de tourner dans ce cas.
+on:
+  schedule:
+    - cron: "0 0,3,6,9,12,15,18,21 * * *"
+  workflow_dispatch: {}
+
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Appeler la route d'import
+        run: |
+          curl --fail-with-body -sS \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            https://poketsecret.com/api/cron/import-produits
