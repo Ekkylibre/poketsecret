@@ -13,7 +13,7 @@ import { decayedConfidence, relativeTime } from "@/lib/confidence";
 import { languageAbbreviations, natureStyles } from "@/lib/product-options";
 import type { AuthorInfo } from "@/lib/queries";
 import type { Availability, Product, Store } from "@/lib/types";
-import { cn, formatStoreAddress } from "@/lib/utils";
+import { cn, formatStoreAddress, truncatePseudo } from "@/lib/utils";
 
 // Distance de glissement (px) à partir de laquelle relâcher le doigt supprime la notification.
 const SWIPE_DISMISS_THRESHOLD = 88;
@@ -234,12 +234,10 @@ export function NotificationRow({
               </span>
             </p>
             <div className="text-muted-foreground/70 mt-1 flex flex-wrap items-center gap-1.5 text-[11px]">
-              <span className="flex min-w-0 items-center gap-1">
-                {authorPrefix}
+              <span className="flex items-center gap-1 overflow-hidden whitespace-nowrap">
+                {authorPrefix} {truncatePseudo(author?.pseudo ?? "Utilisateur")}
                 {author && <TierBadge tier={author.tier} isAdmin={author.isAdmin} />}
-                <span className="min-w-0 truncate">
-                  {author?.pseudo ?? "Utilisateur"} · {authorTime}
-                </span>
+                <span className="shrink-0">· {authorTime}</span>
               </span>
               {/* ml-2 en plus du gap du parent : espace visiblement plus large avant le
                   cluster votes/confiance, pour le distinguer du bloc auteur/durée. */}

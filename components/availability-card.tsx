@@ -4,12 +4,16 @@ import { ImageOff, MapPin, Package, Pin, ThumbsDown, ThumbsUp, TriangleAlert } f
 import { type MouseEvent, useState, useTransition } from "react";
 import { toast } from "sonner";
 
-import { togglePinDisponibilite, voterDisponibilite } from "@/app/(tabs)/magasins/actions";
+import {
+  signalerDisponibilite,
+  signalerPseudo,
+  togglePinDisponibilite,
+  voterDisponibilite,
+} from "@/app/(tabs)/magasins/actions";
 import { ConfidenceBadge } from "@/components/confidence-badge";
 import { FollowProductButton } from "@/components/follow-product-button";
 import { ModifierProduitDialog } from "@/components/produit-dialog";
-import { SignalerDialog } from "@/components/signaler-dialog";
-import { SignalerPseudoDialog } from "@/components/signaler-pseudo-dialog";
+import { SignalerMenu } from "@/components/signaler-menu";
 import { TierBadge } from "@/components/tier-badge";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -17,7 +21,13 @@ import { decayedConfidence, relativeTime } from "@/lib/confidence";
 import { languageAbbreviations, natureStyles } from "@/lib/product-options";
 import type { AuthorInfo } from "@/lib/queries";
 import type { Availability, Product, Store } from "@/lib/types";
-import { cn } from "@/lib/utils";
+import { cn, truncatePseudo } from "@/lib/utils";
+
+// Le prix, la quantité et la nature se corrigent désormais directement via
+// "Modifier le produit" : ce ne sont plus des raisons de signalement. Restent les
+// éléments qu'on ne peut pas s'auto-corriger (identité du produit, photo, doublon)
+// ou qui nécessitent une modération.
+const AVAILABILITY_REPORT_REASONS = ["Produit ou photo incorrect(e)", "Doublon", "Contenu inapproprié ou spam"];
 
 export function AvailabilityCard({
   availability,
@@ -190,13 +200,10 @@ export function AvailabilityCard({
             marge entre les deux, seul mt-auto sur le bloc pousse l'ensemble en bas de
             la card s'il reste de la place). */}
         <div className="mt-auto flex flex-col gap-0">
-          <span className="text-muted-foreground/70 flex min-w-0 items-center gap-1 text-xs">
-            {authorPrefix}
+          <span className="text-muted-foreground/70 flex items-center gap-1 overflow-hidden text-xs whitespace-nowrap">
+            {authorPrefix} {truncatePseudo(author?.pseudo ?? "Utilisateur")}
             {author && <TierBadge tier={author.tier} isAdmin={author.isAdmin} />}
-            <span className="min-w-0 truncate">
-              {author?.pseudo ?? "Utilisateur"} · {authorTime}
-            </span>
-            {author && !author.isAdmin && <SignalerPseudoDialog targetUserId={authorId} />}
+            <span className="shrink-0">· {authorTime}</span>
           </span>
           <div className="flex flex-nowrap items-center gap-0">
             <div className="flex items-center">
@@ -229,7 +236,12 @@ export function AvailabilityCard({
               confidence={confidence}
               className="ml-2 h-4 px-0.5 py-0 text-[10px] leading-none"
             />
-            <SignalerDialog availabilityId={availability.id} />
+            <SignalerMenu
+              contentTitle="Signaler cette annonce"
+              contentReasons={AVAILABILITY_REPORT_REASONS}
+              contentAction={signalerDisponibilite.bind(null, availability.id)}
+              pseudoAction={author && !author.isAdmin ? signalerPseudo.bind(null, authorId) : undefined}
+            />
             <ModifierProduitDialog
               storeId={storeId}
               products={products}

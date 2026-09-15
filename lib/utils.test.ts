@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { cn, formatStoreAddress } from "./utils";
+import { cn, formatStoreAddress, truncatePseudo } from "./utils";
 
 describe("cn", () => {
   it("fusionne des classes simples", () => {
@@ -28,5 +28,23 @@ describe("formatStoreAddress", () => {
     expect(formatStoreAddress({ address: "1 rue de la Paix", city: "Paris" })).toBe(
       "1 rue de la Paix, Paris"
     );
+  });
+});
+
+describe("truncatePseudo", () => {
+  it("laisse un pseudo court intact", () => {
+    expect(truncatePseudo("Didoux")).toBe("Didoux");
+  });
+
+  it("tronque un pseudo trop long avec une ellipse", () => {
+    expect(truncatePseudo("UnPseudoBeaucoupTropLong")).toBe("UnPseudoBeau…");
+  });
+
+  it("ne tronque pas un pseudo pile à la limite", () => {
+    expect(truncatePseudo("DouzeCaractr", 12)).toBe("DouzeCaractr");
+  });
+
+  it("accepte une limite personnalisée", () => {
+    expect(truncatePseudo("Didoux", 3)).toBe("Did…");
   });
 });

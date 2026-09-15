@@ -4,10 +4,9 @@ import { MapPin, Package, Phone, TriangleAlert, X } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 
-import { likeStore, reportStore } from "@/app/(tabs)/magasins/actions";
+import { likeStore, reportStore, signalerMagasin, signalerPseudo } from "@/app/(tabs)/magasins/actions";
 import { ModifierMagasinDialog } from "@/components/nouveau-magasin-dialog";
-import { SignalerMagasinDialog } from "@/components/signaler-magasin-dialog";
-import { SignalerPseudoDialog } from "@/components/signaler-pseudo-dialog";
+import { SignalerMenu } from "@/components/signaler-menu";
 import { StoreVoteButtons } from "@/components/store-vote-buttons";
 import { TierBadge } from "@/components/tier-badge";
 import { Button } from "@/components/ui/button";
@@ -16,7 +15,11 @@ import { relativeTime } from "@/lib/confidence";
 import { dayLabels, formatDayHours, weekdayOrder } from "@/lib/hours";
 import type { AuthorInfo } from "@/lib/queries";
 import type { Store } from "@/lib/types";
-import { cn, formatStoreAddress } from "@/lib/utils";
+import { cn, formatStoreAddress, truncatePseudo } from "@/lib/utils";
+
+// Adresse/horaires retirés : se corrigent directement via "Modifier le magasin", plus
+// besoin de les signaler (même logique que pour les produits, voir availability-card.tsx).
+const STORE_REPORT_REASONS = ["Magasin fermé définitivement", "Doublon", "Contenu inapproprié ou spam"];
 
 export function StoreInfoPanel({
   store,
@@ -79,20 +82,22 @@ export function StoreInfoPanel({
             .map((day) => (
               <div key={day} className="flex justify-between gap-2">
                 <span className="text-muted-foreground shrink-0">{dayLabels[day].slice(0, 3)}</span>
-                <span className="truncate">{formatDayHours(store.hours![day]!)}</span>
+                {/* Pas de truncate : les horaires sont l'info qu'on vient chercher ici, les
+                    perdre derrière "…" sur un panneau étroit serait pire qu'un retour à la
+                    ligne (voir le fix de layout carte-explorer.tsx pour la cause première). */}
+                <span className="min-w-0 text-right">{formatDayHours(store.hours![day]!)}</span>
               </div>
             ))}
         </div>
       )}
 
-      <p className="text-muted-foreground/70 flex min-w-0 items-center gap-1 text-xs">
-        {store.lastModifiedById ? "Modifié par" : "Créé par"}
+      <p className="text-muted-foreground/70 flex items-center gap-1 overflow-hidden text-xs whitespace-nowrap">
+        {store.lastModifiedById ? "Modifié par" : "Créé par"}{" "}
+        {truncatePseudo(author?.pseudo ?? "Utilisateur")}
         {author && <TierBadge tier={author.tier} isAdmin={author.isAdmin} />}
-        <span className="min-w-0 truncate">
-          {author?.pseudo ?? "Utilisateur"} ·{" "}
-          {relativeTime(store.lastModifiedById ? store.lastModifiedAt! : store.createdAt)}
+        <span className="shrink-0">
+          · {relativeTime(store.lastModifiedById ? store.lastModifiedAt! : store.createdAt)}
         </span>
-        {author && !author.isAdmin && <SignalerPseudoDialog targetUserId={authorId} />}
       </p>
 
       {/* Depuis la carte, on sait déjà OÙ est le magasin ; ce bouton répond à la
@@ -116,7 +121,12 @@ export function StoreInfoPanel({
           reportAction={reportStore}
         />
         <div className="flex shrink-0 items-center gap-1">
-          <SignalerMagasinDialog storeId={store.id} />
+          <SignalerMenu
+            contentTitle="Signaler ce magasin"
+            contentReasons={STORE_REPORT_REASONS}
+            contentAction={signalerMagasin.bind(null, store.id)}
+            pseudoAction={author && !author.isAdmin ? signalerPseudo.bind(null, authorId) : undefined}
+          />
           <ModifierMagasinDialog store={store} currentUser={currentUser} />
         </div>
       </div>
