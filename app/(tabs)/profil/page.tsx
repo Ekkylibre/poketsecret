@@ -8,6 +8,7 @@ import { DeleteAccountDialog } from "@/components/delete-account-dialog";
 import { FollowProductButton } from "@/components/follow-product-button";
 import { FollowStoreButton } from "@/components/follow-store-button";
 import { HelpCard } from "@/components/help-card";
+import { InstallAppLink } from "@/components/install-app-link";
 import { ModifierPseudoDialog } from "@/components/modifier-pseudo-dialog";
 import { NotificationNudgeBubble } from "@/components/notification-nudge-bubble";
 import { NotificationPermissionToggle } from "@/components/notification-permission-toggle";
@@ -362,6 +363,8 @@ export default async function ProfilPage({
             <DeleteAccountDialog />
           </Card>
         </div>
+
+        <InstallAppLink />
 
         <HelpCard />
 
