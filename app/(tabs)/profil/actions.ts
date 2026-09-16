@@ -9,7 +9,7 @@ import { auth } from "@/lib/auth/server";
 import { sql } from "@/lib/db";
 import { ensureProfil } from "@/lib/profil";
 import { PSEUDO_CHANGE_COOLDOWN_JOURS, validatePseudo } from "@/lib/pseudo-validation";
-import { PREMIUM_PRICE_EUR_CENTS, PREMIUM_PRICE_ID, stripe } from "@/lib/stripe";
+import { PREMIUM_PRICE_EUR_CENTS, stripe } from "@/lib/stripe";
 
 export async function signOut() {
   await auth.signOut();
@@ -119,75 +119,6 @@ export async function openBillingPortal() {
   });
 
   redirect(portalSession.url);
-}
-
-/** Dev uniquement : simule un abonnement avec un vrai objet Stripe (mode test, carte de
- *  test intégrée pm_card_visa) plutôt qu'un simple flag en base, pour ne pas avoir à
- *  ressaisir une carte à chaque fois pendant le développement, tout en gardant "Gérer
- *  l'abonnement" fonctionnel ensuite (vrai portail Stripe, vraie annulation, vrais
- *  webhooks). Jamais exposé en prod (le composant qui l'appelle ne se rend pas non plus
- *  en prod, mais l'action se protège elle-même en plus, au cas où). */
-export async function devTogglePremium(enabled: boolean) {
-  if (process.env.NODE_ENV === "production") {
-    return { error: "Indisponible en production." };
-  }
-
-  const user = await requireSession();
-  await ensureProfil(user.id, user.name);
-
-  const rows = await sql`
-    select stripe_customer_id, stripe_subscription_id
-    from public.profils_utilisateurs
-    where id = ${user.id}
-  `;
-  const existing = rows[0] as
-    | { stripe_customer_id: string | null; stripe_subscription_id: string | null }
-    | undefined;
-
-  if (enabled) {
-    const customerId =
-      existing?.stripe_customer_id ??
-      (
-        await stripe.customers.create({
-          email: user.email,
-          name: user.name,
-          metadata: { userId: user.id },
-        })
-      ).id;
-
-    const paymentMethod = await stripe.paymentMethods.attach("pm_card_visa", {
-      customer: customerId,
-    });
-
-    const subscription = await stripe.subscriptions.create({
-      customer: customerId,
-      items: [{ price: PREMIUM_PRICE_ID }],
-      default_payment_method: paymentMethod.id,
-      metadata: { userId: user.id },
-    });
-
-    await sql`
-      update public.profils_utilisateurs
-      set
-        est_premium = true,
-        stripe_customer_id = ${customerId},
-        stripe_subscription_id = ${subscription.id},
-        modifie_le = now()
-      where id = ${user.id}
-    `;
-  } else {
-    if (existing?.stripe_subscription_id) {
-      await stripe.subscriptions.cancel(existing.stripe_subscription_id).catch(() => {});
-    }
-    await sql`
-      update public.profils_utilisateurs
-      set est_premium = false, stripe_subscription_id = null, modifie_le = now()
-      where id = ${user.id}
-    `;
-  }
-
-  revalidatePath("/profil");
-  return { success: true };
 }
 
 export interface ChangePasswordState {

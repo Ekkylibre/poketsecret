@@ -5,7 +5,6 @@ import Link from "next/link";
 import { openBillingPortal, signOut, startPremiumCheckout } from "./actions";
 import { ChangePasswordDialog } from "@/components/change-password-dialog";
 import { DeleteAccountDialog } from "@/components/delete-account-dialog";
-import { DevSimulatePremiumToggle } from "@/components/dev-simulate-premium-toggle";
 import { FollowProductButton } from "@/components/follow-product-button";
 import { FollowStoreButton } from "@/components/follow-store-button";
 import { HelpCard } from "@/components/help-card";
@@ -242,11 +241,6 @@ export default async function ProfilPage({
               )}
             </Card>
           </div>
-          {process.env.NODE_ENV !== "production" && (
-            <div className="mt-2">
-              <DevSimulatePremiumToggle checked={isPremium} />
-            </div>
-          )}
         </div>
 
         <div>
