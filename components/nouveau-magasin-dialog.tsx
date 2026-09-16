@@ -29,6 +29,7 @@ import { creerMagasin, modifierMagasin } from "@/app/(tabs)/magasins/nouveau/act
 import { ConfidenceBadge } from "@/components/confidence-badge";
 import { Logo } from "@/components/logo";
 import { StoreLocationPicker } from "@/components/store-location-picker";
+import { TierBadge } from "@/components/tier-badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -622,7 +623,7 @@ function MagasinDialog({
                   placeholder="12 rue de la République"
                 />
                 {showSuggestions && suggestions.length > 0 && (
-                  <ul className="bg-card absolute top-full z-10 mt-1 w-full overflow-hidden rounded-md border shadow-md">
+                  <ul className="bg-card absolute top-full z-20 mt-1 w-full overflow-hidden rounded-md border shadow-md">
                     {suggestions.map((s) => (
                       <li key={`${s.label}-${s.city}`}>
                         <button
@@ -733,7 +734,14 @@ function MagasinDialog({
 
           <div ref={(el) => measureStep(el, 2)} className="flex w-full shrink-0 flex-col gap-1.5">
             <span className="text-sm font-medium">Horaires d&apos;ouverture (optionnel)</span>
-            <div className="flex flex-col gap-2">
+            {/* Hauteur bornée + défilement propre à cette liste (plutôt que de laisser les 7
+                cartes pousser toute la hauteur de l'étape) : sans ça, le pied de page sticky
+                Retour/Suivant se retrouve planté au milieu du défilement du dialogue entier,
+                avec des jours visibles au-dessus ET en dessous des boutons — pas très propre.
+                Ici, les boutons restent un vrai pied de page fixe sous une liste qui défile
+                dans sa propre boîte, avec sa barre de défilement native comme indice qu'il y
+                a plus de jours à voir. */}
+            <div className="flex max-h-[min(66vh,30rem)] flex-col gap-2 overflow-y-auto pr-1">
               {days.map(({ key, label }) => {
                 const isClosed = closedDays[key] ?? false;
                 const morningClosed = closedPeriods[key]?.morning ?? false;
@@ -824,9 +832,10 @@ function MagasinDialog({
                 </div>
               )}
 
-              <p className="text-muted-foreground/70 text-xs">
-                {mode === "create" ? "Créé par" : "Modifié par"} {currentUser?.pseudo ?? "Toi"} ·{" "}
-                à l&apos;instant
+              <p className="text-muted-foreground/70 flex items-center gap-1 text-xs">
+                {mode === "create" ? "Créé par" : "Modifié par"} {currentUser?.pseudo ?? "Toi"}
+                {currentUser && <TierBadge tier={currentUser.tier} isAdmin={currentUser.isAdmin} />}
+                <span>· à l&apos;instant</span>
               </p>
 
               <div className="flex items-center justify-between gap-2">
@@ -934,7 +943,7 @@ function MagasinDialog({
               contenu au-dessus. */}
           <DialogFooter
             className={cn(
-              "bg-card sticky bottom-0 -mx-5 -mb-5 px-5 pt-3 pb-5",
+              "bg-card sticky bottom-0 z-10 -mx-5 -mb-5 px-5 pt-5 pb-5",
               showSuccess && "hidden"
             )}
           >
