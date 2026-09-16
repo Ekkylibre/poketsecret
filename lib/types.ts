@@ -114,24 +114,3 @@ export interface AvailabilityReport {
   reportedById: string;
   reportedAt: string; // ISO date
 }
-
-export interface UserProfile {
-  id: string;
-  username: string;
-  /** Réputation du contributeur (0-100), basée sur l'historique de ses signalements. */
-  reputation: number;
-  isPremium: boolean;
-  followedProductIds: string[];
-  /** Magasins épinglés en haut de liste (tri/accès rapide), n'implique aucune notification. */
-  pinnedStoreIds: string[];
-  /** Magasins dont on veut être notifié du réassort, indépendant de l'épinglage. */
-  followedStoreIds: string[];
-  /** Date (ISO) à laquelle chaque magasin a été suivi, sert de coupure pour ne notifier
-   *  que les dispos créées/mises à jour après coup, pas tout le stock existant. */
-  followedStoreSince: Record<string, string>;
-  /** Disponibilités masquées du flux de notifications (fermées manuellement). */
-  dismissedNotificationIds: string[];
-  /** Notifications déjà vues (marquées lues à l'ouverture de l'onglet, indépendamment
-   *  du clic qui ouvre le magasin). */
-  readNotificationIds: string[];
-}

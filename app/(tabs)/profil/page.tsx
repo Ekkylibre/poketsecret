@@ -1,11 +1,9 @@
 import { CircleCheck, Lock, Mail, MapPin, Star, TriangleAlert } from "lucide-react";
-import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 
 import { openBillingPortal, signOut, startPremiumCheckout } from "./actions";
 import { ChangePasswordDialog } from "@/components/change-password-dialog";
-import { DemoPreviewSignOutButton, DemoPreviewToggle } from "@/components/demo-preview-toggle";
 import { DeleteAccountDialog } from "@/components/delete-account-dialog";
 import { DevSimulatePremiumToggle } from "@/components/dev-simulate-premium-toggle";
 import { FollowProductButton } from "@/components/follow-product-button";
@@ -23,7 +21,6 @@ import { Card } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { auth } from "@/lib/auth/server";
 import { sql } from "@/lib/db";
-import { mockCurrentUser } from "@/lib/mock-data";
 import { ensureProfil } from "@/lib/profil";
 import { fetchFollowedProducts, fetchFollowState, fetchStores, splitFollowedProducts } from "@/lib/queries";
 import {
@@ -34,9 +31,6 @@ import {
 } from "@/lib/reputation";
 import { stripe } from "@/lib/stripe";
 import { formatStoreAddress } from "@/lib/utils";
-
-// Pas encore de champ email côté mock, seule la session réelle en fournit un.
-const MOCK_EMAIL = "didoux@example.com";
 
 // Au-delà, la liste complète se consulte sur sa propre page plutôt que de tout
 // charger d'un coup ici (pertinent surtout pour un compte premium, illimité).
@@ -60,20 +54,17 @@ export default async function ProfilPage({
 }) {
   const { data: session } = await auth.getSession();
   const { checkout, session_id: checkoutSessionId } = await searchParams;
-  const cookieStore = await cookies();
-  const previewConnected = cookieStore.get("demo-preview-connected")?.value === "1";
-  const hasSession = !!session?.user || previewConnected;
 
-  // Pas de session (ni réelle, ni aperçu dev) : la page de connexion couvre déjà
-  // "se connecter"/"créer un compte" (avec Google, mot de passe oublié, etc.), pas
-  // besoin de dupliquer ce contenu ici, on y renvoie directement.
-  if (!hasSession) {
+  // La page de connexion couvre déjà "se connecter"/"créer un compte" (avec Google, mot
+  // de passe oublié, etc.), pas besoin de dupliquer ce contenu ici, on y renvoie
+  // directement.
+  if (!session?.user) {
     redirect("/auth/sign-in");
   }
 
   // Retour de Stripe Checkout : on vérifie la session de paiement plutôt que de faire
   // confiance au seul paramètre d'URL, puis on passe le compte en Premium.
-  if (session?.user && checkout === "success" && checkoutSessionId) {
+  if (checkout === "success" && checkoutSessionId) {
     const checkoutSession = await stripe.checkout.sessions.retrieve(checkoutSessionId);
     if (checkoutSession.metadata?.userId === session.user.id && checkoutSession.status === "complete") {
       await sql`
@@ -88,73 +79,49 @@ export default async function ProfilPage({
     }
   }
 
-  let profil:
+  // Seule l'inscription email/mot de passe crée cette ligne, un compte Google n'en a
+  // jamais sans ça, donc reputation/premium/etc. resteraient bloqués à leurs défauts.
+  await ensureProfil(session.user.id, session.user.name);
+  const profilRows = await sql`
+    select pseudo, reputation, est_premium, pseudo_signale
+    from public.profils_utilisateurs
+    where id = ${session.user.id}
+  `;
+  const profil = profilRows[0] as
     | { pseudo: string; reputation: number; est_premium: boolean; pseudo_signale: boolean }
     | undefined;
-  if (session?.user) {
-    // Seule l'inscription email/mot de passe crée cette ligne, un compte Google n'en a
-    // jamais sans ça, donc reputation/premium/etc. resteraient bloqués sur le mock.
-    await ensureProfil(session.user.id, session.user.name);
-    const rows = await sql`
-      select pseudo, reputation, est_premium, pseudo_signale
-      from public.profils_utilisateurs
-      where id = ${session.user.id}
-    `;
-    profil = rows[0] as typeof profil;
-  }
 
-  // Phase de dev : sans session réelle, on affiche le profil mock plutôt que de bloquer
-  // l'écran derrière un vrai login à chaque fois.
-  const displayName = profil?.pseudo ?? session?.user?.name ?? mockCurrentUser.username;
-  const email = session?.user?.email ?? MOCK_EMAIL;
-  const reputation = profil?.reputation ?? mockCurrentUser.reputation;
-  const isPremium = profil?.est_premium ?? mockCurrentUser.isPremium;
+  const displayName = profil?.pseudo ?? session.user.name ?? "Utilisateur";
+  const email = session.user.email;
+  const reputation = profil?.reputation ?? 0;
+  const isPremium = profil?.est_premium ?? false;
 
-  // Pas de session réelle (aperçu dev uniquement) : pas d'utilisateur réel à qui
-  // rattacher des suivis, on n'a rien de plus honnête à montrer qu'une liste vide.
-  let followedExtensions: ReturnType<typeof splitFollowedProducts>["extensions"] = [];
-  let followedIndividualProducts: ReturnType<typeof splitFollowedProducts>["individual"] = [];
-  let followedStores: Awaited<ReturnType<typeof fetchStores>> = [];
+  const [followState, followedProductRows, allStores, votesUsed, signalementsUsed, annoncesUsed, magasinsUsed] =
+    await Promise.all([
+      fetchFollowState(session.user.id),
+      fetchFollowedProducts(session.user.id),
+      fetchStores(),
+      countVotesToday(session.user.id),
+      countSignalementsToday(session.user.id),
+      countNouvellesAnnoncesToday(session.user.id),
+      countMagasinsCetteSemaine(session.user.id),
+    ]);
+  const { extensions: followedExtensions, individual: followedIndividualProducts } =
+    splitFollowedProducts(followedProductRows);
+  const followedStores = allStores.filter((s) => followState.followedStoreIds.includes(s.id));
   // Consommé aujourd'hui/cette semaine sur les quotas de paliers, affiché en "X/Y" dans
   // ReputationCard : sans ça, ces quotas ne vivaient que côté serveur, l'utilisateur
   // n'avait aucun moyen de savoir où il en est.
-  let quotaUsage = { votes: 0, signalements: 0, nouvellesAnnonces: 0, magasins: 0 };
-  if (session?.user) {
-    const [followState, followedProductRows, allStores, votesUsed, signalementsUsed, annoncesUsed, magasinsUsed] =
-      await Promise.all([
-        fetchFollowState(session.user.id),
-        fetchFollowedProducts(session.user.id),
-        fetchStores(),
-        countVotesToday(session.user.id),
-        countSignalementsToday(session.user.id),
-        countNouvellesAnnoncesToday(session.user.id),
-        countMagasinsCetteSemaine(session.user.id),
-      ]);
-    const split = splitFollowedProducts(followedProductRows);
-    followedExtensions = split.extensions;
-    followedIndividualProducts = split.individual;
-    followedStores = allStores.filter((s) => followState.followedStoreIds.includes(s.id));
-    quotaUsage = {
-      votes: votesUsed,
-      signalements: signalementsUsed,
-      nouvellesAnnonces: annoncesUsed,
-      magasins: magasinsUsed,
-    };
-  }
+  const quotaUsage = {
+    votes: votesUsed,
+    signalements: signalementsUsed,
+    nouvellesAnnonces: annoncesUsed,
+    magasins: magasinsUsed,
+  };
 
   return (
     <div className="flex flex-1 flex-col">
       <div className="flex flex-col gap-6 p-4">
-        {previewConnected && !session?.user && (
-          <div className="bg-muted flex items-center justify-between gap-3 rounded-md px-3 py-2">
-            <p className="text-muted-foreground text-xs">
-              Aperçu &quot;connecté&quot; actif, le reste de l&apos;appli tourne toujours sur les
-              données mock.
-            </p>
-            <DemoPreviewToggle checked={previewConnected} />
-          </div>
-        )}
-
         {profil?.pseudo_signale && (
           <div className="bg-destructive/15 text-destructive flex items-start gap-2 rounded-md px-3 py-2">
             <TriangleAlert className="mt-0.5 size-4 shrink-0" />
@@ -180,7 +147,7 @@ export default async function ProfilPage({
               <div>
                 <div className="flex items-center gap-1">
                   <p className="min-w-0 truncate text-base font-semibold">{displayName}</p>
-                  {session?.user && <ModifierPseudoDialog currentPseudo={displayName} />}
+                  <ModifierPseudoDialog currentPseudo={displayName} />
                 </div>
                 <p className="text-muted-foreground flex items-center gap-1 text-xs">
                   <Star className="size-3 fill-current" />
@@ -416,15 +383,11 @@ export default async function ProfilPage({
           </Link>
         </p>
 
-        {session?.user ? (
-          <form action={signOut}>
-            <Button type="submit" variant="outline" className="w-full">
-              Se déconnecter
-            </Button>
-          </form>
-        ) : (
-          <DemoPreviewSignOutButton />
-        )}
+        <form action={signOut}>
+          <Button type="submit" variant="outline" className="w-full">
+            Se déconnecter
+          </Button>
+        </form>
       </div>
     </div>
   );

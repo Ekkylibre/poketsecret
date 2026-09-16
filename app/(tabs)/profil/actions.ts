@@ -7,7 +7,6 @@ import { revalidatePath } from "next/cache";
 import { requireSession } from "@/lib/auth/require-session";
 import { auth } from "@/lib/auth/server";
 import { sql } from "@/lib/db";
-import { mockCurrentUser } from "@/lib/mock-data";
 import { ensureProfil } from "@/lib/profil";
 import { PSEUDO_CHANGE_COOLDOWN_JOURS, validatePseudo } from "@/lib/pseudo-validation";
 import { PREMIUM_PRICE_EUR_CENTS, PREMIUM_PRICE_ID, stripe } from "@/lib/stripe";
@@ -133,21 +132,13 @@ export async function devTogglePremium(enabled: boolean) {
     return { error: "Indisponible en production." };
   }
 
-  const { data: session } = await auth.getSession();
-  if (!session?.user) {
-    // Pas de session réelle (aperçu dev) : pas de compte à qui rattacher un vrai
-    // customer Stripe, on reste sur le flag mock.
-    mockCurrentUser.isPremium = enabled;
-    revalidatePath("/profil");
-    return { success: true };
-  }
-
-  await ensureProfil(session.user.id, session.user.name);
+  const user = await requireSession();
+  await ensureProfil(user.id, user.name);
 
   const rows = await sql`
     select stripe_customer_id, stripe_subscription_id
     from public.profils_utilisateurs
-    where id = ${session.user.id}
+    where id = ${user.id}
   `;
   const existing = rows[0] as
     | { stripe_customer_id: string | null; stripe_subscription_id: string | null }
@@ -158,9 +149,9 @@ export async function devTogglePremium(enabled: boolean) {
       existing?.stripe_customer_id ??
       (
         await stripe.customers.create({
-          email: session.user.email,
-          name: session.user.name,
-          metadata: { userId: session.user.id },
+          email: user.email,
+          name: user.name,
+          metadata: { userId: user.id },
         })
       ).id;
 
@@ -172,7 +163,7 @@ export async function devTogglePremium(enabled: boolean) {
       customer: customerId,
       items: [{ price: PREMIUM_PRICE_ID }],
       default_payment_method: paymentMethod.id,
-      metadata: { userId: session.user.id },
+      metadata: { userId: user.id },
     });
 
     await sql`
@@ -182,7 +173,7 @@ export async function devTogglePremium(enabled: boolean) {
         stripe_customer_id = ${customerId},
         stripe_subscription_id = ${subscription.id},
         modifie_le = now()
-      where id = ${session.user.id}
+      where id = ${user.id}
     `;
   } else {
     if (existing?.stripe_subscription_id) {
@@ -191,7 +182,7 @@ export async function devTogglePremium(enabled: boolean) {
     await sql`
       update public.profils_utilisateurs
       set est_premium = false, stripe_subscription_id = null, modifie_le = now()
-      where id = ${session.user.id}
+      where id = ${user.id}
     `;
   }
 

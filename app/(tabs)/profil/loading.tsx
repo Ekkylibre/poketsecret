@@ -1,5 +1,3 @@
-import { cookies } from "next/headers";
-
 import { ProfilContentSkeleton } from "@/components/profil-content-skeleton";
 import { SignInFormSkeleton } from "@/components/sign-in-form-skeleton";
 import { auth } from "@/lib/auth/server";
@@ -11,12 +9,9 @@ import { auth } from "@/lib/auth/server";
 // mineur comparé à afficher le mauvais skeleton à quelqu'un.
 export default async function Loading() {
   const { data: session } = await auth.getSession();
-  const cookieStore = await cookies();
-  const previewConnected = cookieStore.get("demo-preview-connected")?.value === "1";
-  const hasSession = !!session?.user || previewConnected;
 
   // Avec session : la vraie page va bien afficher un profil, le skeleton doit lui
   // ressembler. Sans session : page.tsx redirige systématiquement vers /auth/sign-in,
   // le skeleton doit annoncer ça plutôt que de laisser croire à un compte déjà connecté.
-  return hasSession ? <ProfilContentSkeleton /> : <SignInFormSkeleton />;
+  return session?.user ? <ProfilContentSkeleton /> : <SignInFormSkeleton />;
 }

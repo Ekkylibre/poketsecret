@@ -4,7 +4,6 @@ import Link from "next/link";
 import { type FormEvent, useActionState, useEffect, useRef } from "react";
 
 import { signInWithEmail } from "./actions";
-import { DemoPreviewEnterLink } from "@/components/demo-preview-toggle";
 import { GoogleSignInButton } from "@/components/google-sign-in-button";
 import { Logo } from "@/components/logo";
 import { Button } from "@/components/ui/button";
@@ -109,8 +108,6 @@ export default function SignInPage() {
             Créer un compte
           </Link>
         </p>
-
-        <DemoPreviewEnterLink />
       </Card>
     </div>
   );
